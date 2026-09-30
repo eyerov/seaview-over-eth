@@ -1,0 +1,57 @@
+# seaview.conf
+#
+# Copy this file to "seaview.conf" (same directory as start-seaview.sh) and
+# edit for your machine. Any value can also be overridden on the command
+# line, e.g.:
+#   ./start-seaview.sh --ip 192.168.2.125 --com COM10
+#
+# For the ethernet transport, only CONVERTER_IP is required; everything else
+# has a working default or is auto-detected.
+
+# Transport:
+#   "ethernet" - RS485-to-Ethernet converter, bridged in via socat + tty0tty.
+#                This is the FMD deployment architecture.
+#   "usb"      - USB serial adapter mapped straight to a Wine COM port.
+#                For bench work before the converter is in the loop.
+TRANSPORT="ethernet"
+
+# --- ethernet transport ----------------------------------------------------
+
+# IP address of the RS485-to-Ethernet converter
+CONVERTER_IP="192.168.2.125"
+
+# TCP port the converter serves RAW serial data on. Many converters expose
+# their configuration menu on a different port (often 23) than the raw data
+# stream - make sure this is the raw one.
+CONVERTER_PORT="2000"
+
+# Which tty0tty pair to use: 0, 2, 4, or 6 (pairs are N <-> N+1).
+# Leave blank to auto-detect the first working pair.
+TNT_PAIR=""
+
+# --- usb transport ---------------------------------------------------------
+
+# Serial device for TRANSPORT="usb". Leave blank to auto-detect; the script
+# prefers /dev/serial/by-id/* because /dev/ttyUSB* renumbers on replug.
+USB_PORT=""
+
+# --- common ----------------------------------------------------------------
+
+# Wine COM port name to expose. Select this inside seaView.
+WINE_COM_PORT="COM10"
+
+# Windows-style path (as Wine sees it) to seaView.
+SEAVIEW_EXE='C:\Program Files\Impact Subsea\seaView\seaView.exe'
+
+# Wine prefix. MUST be 64-bit - seaView.exe is a 64-bit binary and a win32
+# prefix rejects it with "Bad EXE format". Leave blank to use $WINEPREFIX
+# from the environment, or ~/.wine-seaview if that is also unset.
+#
+# Note this deliberately does NOT default to ~/.wine, which is 32-bit on a
+# stock Ubuntu install.
+WINEPREFIX=""
+
+# Only needed if the tty0tty module is not already installed system-wide.
+# Leave blank to use the location install-tty0tty.sh stages it into:
+#   ${XDG_DATA_HOME:-$HOME/.local/share}/tty0tty/module
+TTY0TTY_DIR=""
