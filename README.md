@@ -1,8 +1,10 @@
 # seaview-over-eth
 
 Runs **Impact Subsea seaView** on Linux under Wine, with the sonar/altimeter
-reached either over an RS485-to-Ethernet converter or over a local USB serial
-adapter.
+reached over an RS485-to-Ethernet converter.
+
+Everything needed is in this folder — installer, scripts and guides. There is
+no USB dependency and nothing to fetch from elsewhere.
 
 > Setting this up on an operator machine? Use
 > [SETUP-GUIDE.md](SETUP-GUIDE.md) instead — this README is the technical
@@ -41,8 +43,10 @@ socat                              (bridge)
 serial ports (`/dev/tnt0`..`/dev/tnt7`). `socat` writes converter traffic
 into one end of a pair; Wine reads the other end as a COM port.
 
-For bench work before the converter is in the loop, `TRANSPORT="usb"` skips
-socat and tty0tty entirely and maps a USB adapter straight to the COM port.
+`TRANSPORT="loopback"` brings up the identical port path with no converter
+behind it, so the whole stack can be validated with no hardware at all — no
+converter and no USB adapter. There is deliberately **no USB transport**:
+everything needed is in this folder.
 
 ## Contents
 
@@ -177,12 +181,11 @@ else has a working default.
 
 | Setting | Default | Notes |
 |---|---|---|
-| `TRANSPORT` | `ethernet` | or `usb` for a local adapter |
+| `TRANSPORT` | `ethernet` | or `loopback` to validate with no hardware |
 | `CONVERTER_PORT` | `2000` | must be the **raw data** port, not the admin menu |
 | `TNT_PAIR` | auto-detect | `0`, `2`, `4`, or `6`; pairs are N ↔ N+1 |
 | `WINE_COM_PORT` | `COM11` | what you select inside seaView |
 | `WINEPREFIX` | `~/.wine-seaview` | must be 64-bit |
-| `USB_PORT` | auto-detect | `usb` transport only; prefers `/dev/serial/by-id/*` |
 
 ---
 
@@ -196,7 +199,7 @@ Then select **COM11** in seaView's port settings.
 
 ```bash
 ./start-seaview.sh --ip 192.168.2.99 --port 4001 --com COM3
-./start-seaview.sh --transport usb          # bench mode, no converter
+./start-seaview.sh --transport loopback --feed   # no hardware at all
 ./start-seaview.sh --help
 ```
 
@@ -225,39 +228,74 @@ This is the most common cause of "the port opens but the data is garbage":
 Wine faithfully applies a baud rate to a virtual port, and the converter is
 talking at a different one.
 
-On the `usb` transport the baud rate *is* real and seaView's setting applies.
+The same is true on the loopback transport: the tty0tty pair accepts any baud
+setting and ignores it.
 
 ---
 
-## Phantom COM ports
+## One port, by design
 
-seaView opens and polls **every COM port Wine advertises**, continuously.
-The kernel's 8250 driver creates 32 `/dev/ttyS*` nodes even on machines with
-no serial hardware, and Wine turns each into a COM port. Measured on a laptop
-with no onboard serial:
+seaView opens and polls **every COM port Wine advertises**, continuously, on
+its GUI thread. The intended end state on the FMD machine is therefore exactly
+one port: **COM11 and nothing else.**
 
-| Serial devices Wine registers | seaView GUI thread | Frame rate |
-|---|---|---|
-| 34 | saturated (~100% of one core) | 12 frames / 20 s |
-| 64 (test) | saturated, 2.5× the error callbacks | — |
+That is achievable because of how Wine discovers ports. Its boot scan looks at
+precisely three patterns:
 
-The UI becomes unusably sluggish. If the machine has no real onboard serial
-hardware, cut them:
-
-```bash
-echo 1 | sudo tee /sys/module/8250/parameters/nr_uarts     # runtime, may not shrink
+```
+/dev/ttyS*    /dev/ttyUSB*    /dev/ttyACM*
 ```
 
-or permanently, by adding `8250.nr_uarts=1` to the kernel command line:
+`/dev/tnt*` is **not** among them. A tty0tty device can only become a COM port
+by being named in `HKLM\Software\Wine\Ports` — which is exactly what step 8
+does. So the bridge contributes one port and one only.
+
+Everything Wine auto-detects is an *extra* port seaView will poll. On a machine
+with no serial hardware the kernel still creates 32 `/dev/ttyS*` nodes, and
+Wine turns each into a COM port:
+
+| Source | Ports | With `8250.nr_uarts=0` |
+|---|---|---|
+| `/dev/ttyS*` | 32 | **0** |
+| `/dev/ttyUSB*` | 0 (no USB in this architecture) | **0** |
+| `/dev/tnt*` via Ports key | 1 | **1** |
+| **Total seaView sees** | **33** | **1** |
+
+Measured at 33–34 ports, the scan saturates the GUI thread:
+
+| Serial devices | seaView GUI thread | Frame rate |
+|---|---|---|
+| 34 | ~100% of one core | 12 frames / 20 s |
+| 64 (test) | saturated, 2.5× the error callbacks | — |
+
+**There is no way to restrict this from inside Wine.** Tested on Wine 11: a
+prefix with every `dosdevices/com*` symlink deleted and only COM11 in the
+Ports key still came back with 33 devices after boot — the Ports key *adds*
+ports, it never limits them. The only lever is what exists in `/dev`.
+
+So the fix is kernel-side. Confirm the onboard ports are phantom first:
 
 ```bash
-sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 8250.nr_uarts=1"/' /etc/default/grub
+cat /sys/class/tty/ttyS0/type      # 0 = PORT_UNKNOWN, no real UART
+```
+
+Then remove them via the kernel command line:
+
+```bash
+sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 8250.nr_uarts=0"/' /etc/default/grub
 sudo update-grub && sudo reboot
 ```
 
-`start-seaview.sh` warns when it sees more than 4 of them. This problem does
-**not** affect NOR-CP-Logger, which lets the operator pick a port instead of
-scanning them all.
+Use `8250.nr_uarts=1` instead if `0` is rejected; that leaves one harmless
+`ttyS0`, so seaView sees two ports rather than one — still about a
+seventeenth of the original load.
+
+`start-seaview.sh` reports the count at every launch, and says
+`COM11 only (as designed)` once it is right.
+
+This affects CP Logger too, and in its favour: its COM10 also comes from the
+Ports key over a tty0tty device, so neither application depends on
+`/dev/ttyS*` existing.
 
 ---
 
@@ -283,7 +321,7 @@ socat - tcp:192.168.2.125:2000
 |---|---|---|
 | `Bad EXE format` | 32-bit prefix | Recreate as `WINEARCH=win64` (Step 2) |
 | Dies ~10 s after start, `page fault ... 0x0` | Wine ≤ 9 | Install Wine 10+ (Step 1) |
-| UI very sluggish, < 1 fps | 32 phantom `ttyS` ports | See [Phantom COM ports](#phantom-com-ports) |
+| UI very sluggish, < 1 fps | Wine is exposing more than just COM11 | See [One port, by design](#one-port-by-design) |
 | Port opens, data is garbage | Converter baud ≠ device baud | Set it in the converter, not seaView |
 | `COM11` missing from seaView's list | Mapping written after seaView started | Re-run `./start-seaview.sh`, wait for step `[8/8]` |
 | No data in seaView | Wrong converter IP/port | `socat - tcp:<ip>:<port>`; check raw vs admin port |

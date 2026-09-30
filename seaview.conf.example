@@ -11,8 +11,9 @@
 # Transport:
 #   "ethernet" - RS485-to-Ethernet converter, bridged in via socat + tty0tty.
 #                This is the FMD deployment architecture.
-#   "usb"      - USB serial adapter mapped straight to a Wine COM port.
-#                For bench work before the converter is in the loop.
+#   "loopback" - the same tty0tty port path with no converter behind it, so
+#                the whole stack can be validated with no hardware at all.
+#                Add --feed to inject a test pattern. See SETUP-GUIDE Part 10.
 TRANSPORT="ethernet"
 
 # --- ethernet transport ----------------------------------------------------
@@ -29,15 +30,15 @@ CONVERTER_PORT="2000"
 # Leave blank to auto-detect the first working pair.
 TNT_PAIR=""
 
-# --- usb transport ---------------------------------------------------------
-
-# Serial device for TRANSPORT="usb". Leave blank to auto-detect; the script
-# prefers /dev/serial/by-id/* because /dev/ttyUSB* renumbers on replug.
-USB_PORT=""
-
 # --- common ----------------------------------------------------------------
 
 # Wine COM port name to expose. Select this inside seaView.
+#
+# COM11 deliberately, because CP Logger uses COM10 on the same machine. The
+# Ports key lives inside each Wine prefix so they would not actually collide,
+# but distinct numbers mean a port name identifies its application.
+#
+# This is intended to be the ONLY port Wine exposes -- see SETUP-GUIDE Part 9.
 WINE_COM_PORT="COM11"
 
 # Windows-style path (as Wine sees it) to seaView.

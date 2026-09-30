@@ -11,8 +11,10 @@
 #                          virtual null-modem pair -> Wine COM port.
 #                          This is the FMD deployment architecture.
 #
-#   TRANSPORT="usb"        USB serial adapter -> Wine COM port directly.
-#                          For bench work with a USB RS232/RS485 adapter.
+#   TRANSPORT="loopback"   tty0tty pair with no converter behind it. Brings up
+#                          the identical port path so the whole stack can be
+#                          validated with no hardware at all -- no converter,
+#                          no USB adapter. Use --feed to inject a test pattern.
 #
 # Settings come from (in order of increasing priority):
 #   1. built-in defaults (below)
@@ -33,7 +35,7 @@ CONVERTER_PORT="2000"
 TNT_PAIR=""
 WINE_COM_PORT="COM11"
 SEAVIEW_EXE='C:\Program Files\Impact Subsea\seaView\seaView.exe'
-USB_PORT=""
+FEED=0
 WINEPREFIX_OVERRIDE=""
 SOCAT_LOG="/tmp/socat-seaview.log"
 CONFIG_FILE="$(dirname "$(readlink -f "$0")")/seaview.conf"
@@ -53,11 +55,12 @@ Usage: $(basename "$0") [options]
 
 Options:
   --config FILE         Path to config file (default: ./seaview.conf if present)
-  --transport MODE      "ethernet" (converter + tty0tty) or "usb" (direct adapter)
+  --transport MODE      "ethernet" (converter) or "loopback" (no hardware)
   --ip IP               Converter IP address (ethernet transport; required)
   --port PORT           Converter TCP port (default: 2000)
   --tnt-pair N          tty0tty pair index: 0, 2, 4, or 6 (default: auto-detect)
-  --usb-port PATH       Serial device for usb transport (default: auto-detect by-id)
+  --feed                Loopback only: inject a repeating test pattern so the
+                        port visibly carries data
   --com PORT            Wine COM port name, e.g. COM11 (default: COM11)
   --exe PATH            Windows path to seaView.exe
   --wineprefix PATH     WINEPREFIX to use (default: \$WINEPREFIX, else ~/.wine-seaview)
@@ -99,7 +102,7 @@ while [ $# -gt 0 ]; do
         --ip)           CONVERTER_IP="$2"; shift 2 ;;
         --port)         CONVERTER_PORT="$2"; shift 2 ;;
         --tnt-pair)     TNT_PAIR="$2"; shift 2 ;;
-        --usb-port)     USB_PORT="$2"; shift 2 ;;
+        --feed)         FEED=1; shift ;;
         --com)          WINE_COM_PORT="$2"; shift 2 ;;
         --exe)          SEAVIEW_EXE="$2"; shift 2 ;;
         --wineprefix)   WINEPREFIX_OVERRIDE="$2"; shift 2 ;;
@@ -202,29 +205,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Preflight: phantom serial ports.
+# Preflight: how many COM ports will seaView see?
 #
-# seaView opens and polls EVERY COM port Wine advertises, continuously. The
-# kernel's 8250 driver creates 32 /dev/ttyS* nodes even on machines with no
-# serial hardware, Wine turns each into a COM port, and the resulting scan
-# saturates seaView's GUI thread -- the UI drops to well under 1 fps.
+# seaView opens and polls EVERY COM port Wine advertises, continuously, on its
+# GUI thread. The intended end state is exactly one -- the tty0tty port mapped
+# below -- because Wine's boot scan only ever looks at /dev/ttyS*, /dev/ttyUSB*
+# and /dev/ttyACM*. /dev/tnt* is not in that list, so a tty0tty device becomes
+# a COM port only by being named in HKLM\Software\Wine\Ports.
 #
-# Advisory only: it needs root to change, and seaView still works, just
-# slowly.
+# Anything Wine auto-detects is therefore an extra port seaView will poll. The
+# kernel's 8250 driver creates 32 /dev/ttyS* nodes even with no serial
+# hardware present, which is enough to saturate the GUI thread and drop the
+# UI below 1 fps.
+#
+# Advisory only: it needs root and a reboot to change.
 # ---------------------------------------------------------------------------
-NR_UARTS="$(cat /sys/module/8250/parameters/nr_uarts 2>/dev/null || echo 0)"
-if [ "$NR_UARTS" -gt 4 ] 2>/dev/null; then
-    TTYS_COUNT=$(ls /dev/ttyS* 2>/dev/null | wc -l)
+N_TTYS=$(ls /dev/ttyS* 2>/dev/null | wc -l)
+N_USB=$(ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | wc -l)
+N_AUTO=$((N_TTYS + N_USB))
+if [ "$N_AUTO" -gt 0 ]; then
     cat >&2 <<EOF
-NOTE: the kernel is exposing $TTYS_COUNT /dev/ttyS* ports (8250.nr_uarts=$NR_UARTS).
-      seaView polls every COM port Wine advertises, so these phantom ports
-      make the UI sluggish. If this machine has no real onboard serial
-      hardware, reduce them:
-          echo 1 | sudo tee /sys/module/8250/parameters/nr_uarts
-      or permanently, via the kernel command line:
-          8250.nr_uarts=1      (see README "Phantom COM ports")
+NOTE: Wine will auto-detect $N_AUTO serial device(s) besides ${WINE_COM_PORT}
+      (${N_TTYS} x /dev/ttyS*, ${N_USB} x /dev/ttyUSB*|ttyACM*).
+      seaView polls every port it can see, so these make the UI sluggish.
+      The design target is ${WINE_COM_PORT} and nothing else.
+
+      If this machine has no real onboard serial hardware, remove the
+      phantom ttyS nodes via the kernel command line (see SETUP-GUIDE Part 9):
+          8250.nr_uarts=0
+      Check first with:  cat /sys/class/tty/ttyS0/type   (0 = no real UART)
 
 EOF
+else
+    echo "Serial ports Wine will expose: ${WINE_COM_PORT} only (as designed)."
 fi
 
 # ---------------------------------------------------------------------------
@@ -237,9 +250,9 @@ case "$TRANSPORT" in
             exit 1
         fi
         ;;
-    usb) ;;
+    loopback) ;;
     *)
-        echo "ERROR: unknown TRANSPORT '$TRANSPORT' (expected 'ethernet' or 'usb')." >&2
+        echo "ERROR: unknown TRANSPORT '$TRANSPORT' (expected 'ethernet' or 'loopback')." >&2
         exit 1
         ;;
 esac
@@ -250,33 +263,10 @@ if [ -z "$SEAVIEW_EXE" ]; then
 fi
 
 # ===========================================================================
-# USB transport: map the adapter straight to the Wine COM port and launch.
-# ===========================================================================
-if [ "$TRANSPORT" = "usb" ]; then
-    echo "[1/2] Selecting USB serial adapter..."
-    if [ -z "$USB_PORT" ]; then
-        # Prefer the stable by-id name: /dev/ttyUSB* renumbers on replug.
-        USB_PORT=$(ls -1 /dev/serial/by-id/* 2>/dev/null | head -n1)
-        [ -z "$USB_PORT" ] && USB_PORT=$(ls -1 /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | sort -V | head -n1)
-    fi
-    if [ -z "$USB_PORT" ] || [ ! -e "$USB_PORT" ]; then
-        echo "  ERROR: no USB serial adapter found. Plug it in, or pass --usb-port." >&2
-        exit 1
-    fi
-    echo "  Using: $USB_PORT ($(readlink -f "$USB_PORT"))"
-
-    echo "[2/2] Mapping Wine ${WINE_COM_PORT} -> ${USB_PORT} ..."
-    wine reg add "HKLM\\Software\\Wine\\Ports" /v "$WINE_COM_PORT" /t REG_SZ /d "$USB_PORT" /f >/dev/null 2>&1
-    wineserver -k 2>/dev/null; sleep 1
-    wineboot -u >/dev/null 2>&1
-
-    echo "Launching seaView (select ${WINE_COM_PORT} in its port settings)..."
-    echo
-    exec wine "$SEAVIEW_EXE"
-fi
-
-# ===========================================================================
-# Ethernet transport: converter -> socat -> tty0tty pair -> Wine COM port.
+# Port path:  [converter -> socat ->]  tty0tty pair  ->  Wine COM port
+#
+# Both transports share this. "loopback" simply omits the socat stage, so the
+# port seaView sees is brought up exactly the same way in both cases.
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -397,8 +387,29 @@ cleanup() {
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# 6. (Re)start the socat bridge
+# 6. (Re)start the socat bridge -- ethernet transport only.
+#
+#    On loopback there is nothing to bridge: the tty0tty pair is the whole
+#    path. Optionally feed it a test pattern so the port visibly carries data.
 # ---------------------------------------------------------------------------
+if [ "$TRANSPORT" = "loopback" ]; then
+    echo "[6/8] Loopback - no converter, skipping socat bridge."
+    SOCAT_PID="(none)"
+    if [ "$FEED" -eq 1 ]; then
+        echo "      Feeding a test pattern into ${TNT_SOCAT_SIDE} (1 line/sec)..."
+        (
+            i=0
+            while :; do
+                i=$((i+1))
+                printf 'SEAVIEW LOOPBACK TEST %06d\r\n' "$i" > "$TNT_SOCAT_SIDE" 2>/dev/null || exit 0
+                sleep 1
+            done
+        ) &
+        FEED_PID=$!
+        cleanup_feed() { [ -n "${FEED_PID:-}" ] && kill "$FEED_PID" 2>/dev/null; }
+        trap 'cleanup; cleanup_feed' EXIT
+    fi
+else
 echo "[6/8] (Re)starting socat bridge: ${CONVERTER_IP}:${CONVERTER_PORT} <-> ${TNT_SOCAT_SIDE} ..."
 pkill -f "socat.*${CONVERTER_IP}:${CONVERTER_PORT}" 2>/dev/null
 sleep 1
@@ -417,10 +428,14 @@ if ! kill -0 "$SOCAT_PID" 2>/dev/null; then
     exit 1
 fi
 echo "  socat running (pid ${SOCAT_PID}), logging to ${SOCAT_LOG}"
+fi
 
 # ---------------------------------------------------------------------------
 # 7. Data flow check (informational)
 # ---------------------------------------------------------------------------
+if [ "$TRANSPORT" = "loopback" ]; then
+    echo "[7/8] Loopback - no bridge to check."
+else
 echo "[7/8] Checking for data flow (informational, up to 5s)..."
 DATA_CONFIRMED=0
 for i in $(seq 1 5); do
@@ -432,6 +447,7 @@ if [ "$DATA_CONFIRMED" -eq 1 ]; then
 else
     echo "  NOTE: no data seen in ${SOCAT_LOG} yet after 5s. The ISA500 may be" >&2
     echo "  silent until polled, so this is not necessarily a fault." >&2
+fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -457,8 +473,11 @@ fi
 # 9. Launch seaView
 # ---------------------------------------------------------------------------
 echo "Launching seaView (select ${WINE_COM_PORT} in its port settings)..."
-echo "      socat bridge pid ${SOCAT_PID} will keep running in the background;"
-echo "      run 'pkill socat' manually when you're done."
+if [ "$TRANSPORT" != "loopback" ]; then
+    echo "      socat bridge pid ${SOCAT_PID} will keep running in the background."
+    echo "      Stop just this one with:  pkill -f \"socat.*${CONVERTER_IP}\""
+    echo "      (a bare 'pkill socat' would also stop CP Logger's bridge)"
+fi
 echo
 
 wine "$SEAVIEW_EXE"

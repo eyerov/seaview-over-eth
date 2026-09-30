@@ -21,9 +21,9 @@ first run.
 - The converter powered on and connected to the network
 - An internet connection for the first-time setup
 
-> **Bench testing without a converter?** You can skip Parts 5 and 7 and run
-> with a USB serial adapter instead — see [Bench mode](#bench-mode) at the
-> end.
+> **No converter yet?** Everything except the converter itself can still be
+> checked — see [Testing without a converter](#testing-without-a-converter)
+> at the end. No extra hardware is needed.
 
 ---
 
@@ -211,17 +211,29 @@ Save with **Ctrl + S** and close the editor.
 
 ---
 
-## Part 9 — Speed up the display
+## Part 9 — Make COM11 the only port
 
-Skip this only if the machine has a real serial port on its motherboard —
-most laptops and mini-PCs do not.
+**Do not skip this.** Without it seaView's display is slow and jerky.
 
-Linux pretends to have 32 serial ports even when none exist. seaView checks
-every one of them, over and over, which makes its display slow and jerky.
-Turning them off makes it responsive.
+seaView checks every serial port Windows offers it, over and over. Linux
+pretends to have 32 serial ports even when the machine has none, so seaView
+spends all its time checking ports that do not exist. Removing them leaves
+**COM11 as the only port**, which is what the setup is designed around.
+
+First confirm this machine has no real serial port on its motherboard:
 
 ```bash
-sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 8250.nr_uarts=1"/' /etc/default/grub
+cat /sys/class/tty/ttyS0/type
+```
+
+If this prints **`0`**, the ports are imaginary and safe to remove — continue.
+If it prints anything else, the machine has real serial hardware; skip to
+Part 10 and mention it when reporting any slowness.
+
+Remove them:
+
+```bash
+sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 8250.nr_uarts=0"/' /etc/default/grub
 ```
 
 ```bash
@@ -233,11 +245,15 @@ Then **reboot**.
 After rebooting, check it worked:
 
 ```bash
-ls /dev/ttyS* | wc -l
+ls /dev/ttyS* 2>/dev/null | wc -l
 ```
 
-This should print `1`. If it still prints `32`, the change did not apply —
+This should print **`0`**. If it still prints `32`, the change did not apply —
 see [Troubleshooting](#troubleshooting).
+
+> If `0` causes any problem on this machine, use `8250.nr_uarts=1` instead and
+> re-run the two commands above. That leaves one harmless port, so seaView
+> sees two instead of one — still far better than 33.
 
 ---
 
@@ -250,6 +266,15 @@ cd ~/seaview-over-eth
 
 The script runs through eight numbered steps and then launches seaView. Once
 the program is open, go to its port settings and select **COM11**.
+
+Near the top of its output you should see:
+
+```
+Serial ports Wine will expose: COM11 only (as designed).
+```
+
+If instead it warns that Wine will auto-detect other devices, Part 9 has not
+taken effect — the display will be sluggish until it does.
 
 Leaving the terminal open lets you see any errors the script reports.
 
@@ -288,24 +313,25 @@ pkill socat
 
 ---
 
-## Bench mode
+## Testing without a converter
 
-To test with a USB serial adapter instead of the converter — no driver, no
-network:
+The whole setup can be checked with no hardware at all — no converter, no
+cables. This brings up COM11 over exactly the same path, just with nothing
+feeding it:
 
 ```bash
-./start-seaview.sh --transport usb
+cd ~/seaview-over-eth
+./start-seaview.sh --transport loopback --feed
 ```
 
-The script finds the adapter automatically and maps it to COM11. Parts 5, 6
-and 8 are not needed for this.
+`--feed` writes a test line into the port once a second, so you can confirm
+data reaches seaView. Select **COM11** in seaView as usual.
 
-In bench mode the baud rate you choose in seaView is real, and should be
-**115200** for an ISA500 at its default settings.
+This checks everything except the converter itself: Wine, the seaView install,
+the driver, the port mapping, and that COM11 is the only port. Useful for
+confirming a machine is ready before it goes to the vessel.
 
-> On the converter, the baud rate in seaView does **nothing** — the real
-> setting lives in the converter's own configuration. This catches people
-> out: the port opens, but the data is unreadable.
+Parts 7 and 8 (converter settings) are not needed for this.
 
 ---
 
@@ -315,7 +341,7 @@ In bench mode the baud rate you choose in seaView is real, and should be
 |---|---|
 | seaView closes by itself after ~10 seconds | Wine is too old. Check `wine --version` — it must be 10 or higher. Redo Part 3. |
 | `Bad EXE format` | The Wine environment is 32-bit. Redo Part 4. |
-| seaView is slow and jerky | Part 9 was skipped, or did not apply. Check `ls /dev/ttyS* \| wc -l`. |
+| seaView is slow and jerky | Part 9 was skipped, or did not apply. The start script should say `COM11 only (as designed)`. Check `ls /dev/ttyS* 2>/dev/null \| wc -l` — it should be `0`. |
 | `Permission denied` running a script | Part 2 was skipped — run the `chmod +x` command, then retry. |
 | Program opens but shows no data | Wrong IP or port. Recheck Part 8. Confirm the converter is powered on and on the network. |
 | Data appears but is unreadable | The converter's own baud rate does not match the device. Set it in the converter, not in seaView. |
@@ -326,7 +352,7 @@ In bench mode the baud rate you choose in seaView is real, and should be
 | `COM11` missing from seaView's port list | Close seaView, re-run `./start-seaview.sh`, and wait for step `[8/8]` before opening port settings. |
 | `[FAILED] Could not install/load tty0tty` | Usually no internet connection to download the driver source. Check connectivity and re-run Part 5. |
 | Ports show `root root` instead of `root dialout` | Part 6 was skipped. Log out and back in. |
-| `ls /dev/ttyS* \| wc -l` still prints 32 after Part 9 | The GRUB edit did not apply. Open `/etc/default/grub`, check `GRUB_CMDLINE_LINUX_DEFAULT` contains `8250.nr_uarts=1`, then re-run `sudo update-grub` and reboot. |
+| Still 32 ports after Part 9 | The GRUB edit did not apply. Open `/etc/default/grub`, check `GRUB_CMDLINE_LINUX_DEFAULT` contains `8250.nr_uarts=0`, then re-run `sudo update-grub` and reboot. |
 
 ### Reporting a problem
 
@@ -354,7 +380,7 @@ along with the error message shown on screen.
 |---|---|
 | Go to the folder | `cd ~/seaview-over-eth` |
 | Start seaView | `./start-seaview.sh` |
-| Start without the converter | `./start-seaview.sh --transport usb` |
+| Test with no hardware | `./start-seaview.sh --transport loopback --feed` |
 | Stop the bridge | `pkill socat` |
 | Edit settings | `gnome-text-editor seaview.conf` |
 | Check the connection log | `tail -20 /tmp/socat-seaview.log` |
