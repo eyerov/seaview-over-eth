@@ -453,9 +453,14 @@ nodes, and Wine turns each into a COM port. Measured on this machine:
 | | Before (Part 9 skipped) | After |
 |---|---|---|
 | Serial devices Wine exposes | 34 | **1** |
-| Display thread CPU | 97.5% | **1.5–1.8%** |
-| Frames drawn in 20 s | 12 | **2320** |
+| Display thread CPU | 97.2% | **0.2%** |
+| Frame rate | 0.6 fps | **~10 fps** |
 | Internal port errors in 20 s | 3466 | **0** |
+
+One thing to expect: with nothing answering on COM11, seaView keeps a
+background thread busy at roughly half a CPU core, looking for a device. That
+does not slow the display — the drawing thread is idle — but it is normal on
+this setup and not a fault.
 
 **There is no way to restrict this from inside Wine.** Tested on Wine 11: an
 environment with every port link deleted and only COM11 registered still came
