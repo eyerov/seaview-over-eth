@@ -12,8 +12,7 @@ first run.
 
 - Ubuntu 24.04
 - The **seaview-over-eth** folder (this one)
-- Nothing else to download: the seaView installer and the driver source are
-  both in this folder
+- The seaView installer is already in this folder — nothing to fetch for it
 - The administrator password for the machine
 - The converter's **IP address** (e.g. `192.168.2.125`) and its **raw data
   port** (often `2000`; some converters use `23`)
@@ -120,8 +119,8 @@ rm -rf ~/.wine-seaview
 Installs the virtual serial-port driver (tty0tty) that carries data from the
 converter into seaView.
 
-The driver source is included in this folder (`tty0tty/`), so this works
-without an internet connection.
+The script downloads the driver source and builds it, so this step needs an
+internet connection.
 
 ```bash
 ./install-tty0tty.sh
@@ -136,6 +135,20 @@ crw-rw---- 1 root dialout 505, 0 ... /dev/tnt0
 ```
 
 If you see `[FAILED]`, go to [Troubleshooting](#troubleshooting).
+
+### If the machine has no internet
+
+The script can build from a copy of the source placed next to it instead.
+On a machine that does have internet:
+
+```bash
+wget https://github.com/lcgamboa/tty0tty/archive/refs/heads/master.zip
+unzip master.zip          # creates tty0tty-master/
+```
+
+Copy the resulting `tty0tty-master/` folder into `~/seaview-over-eth` on the
+target machine (USB stick is fine), then run `./install-tty0tty.sh` as above —
+it finds and uses it automatically, with no network access.
 
 ---
 

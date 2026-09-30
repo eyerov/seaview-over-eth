@@ -1,7 +1,11 @@
-# Nothing is excluded. This repository is handed to operators as a complete,
-# self-contained folder over GitHub: the seaView installer, the tty0tty
-# driver source, the scripts and the config all travel with it, so a clone
-# needs no other downloads.
+# The tty0tty driver source is not committed. install-tty0tty.sh fetches it
+# (or builds from a copy placed here manually -- see SETUP-GUIDE Part 5 for
+# the offline route). This matches serial-over-eth.
+tty0tty
+tty0tty-master
+
+# Everything else travels with the repository, including the seaView
+# installer and seaview.conf, so a clone is otherwise self-contained.
 #
 # seaview.conf is committed with working defaults and is meant to be edited
 # in place on each machine. If you later pull updates, git may report a

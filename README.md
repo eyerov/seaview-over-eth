@@ -8,9 +8,10 @@ seaView is a Windows program. It runs here through Wine, a compatibility layer
 that lets Windows software run on Linux. You do not need to know anything about
 Wine to use it — the setup handles that.
 
-**Everything needed is in this folder.** The seaView installer, the driver
-source, the scripts and the configuration all travel with the repository, so a
-fresh clone needs no other downloads.
+**The seaView installer is in this folder**, along with the scripts and the
+configuration, so there is nothing to hunt down separately. The one thing
+fetched during setup is the virtual serial-port driver, which the installer
+script downloads for you.
 
 ---
 
@@ -82,7 +83,7 @@ a particular socket.
 | `install-tty0tty.sh` | Installs the virtual serial-port driver |
 | `seaview.conf` | Your settings — converter address, port name, paths |
 | `Seaview (Rev 3.1.8.2).exe` | The seaView installer |
-| `tty0tty/` | Driver source, included so installation works offline |
+| `tty0tty/` | Driver source — not in the repository; `install-tty0tty.sh` fetches it |
 
 ---
 
@@ -116,7 +117,7 @@ match its converter address —
 - Ubuntu 24.04
 - An RS485-to-Ethernet converter, reachable on the network
 - Administrator (sudo) access on the machine, for first-time setup only
-- An internet connection during setup
+- An internet connection during setup (for Wine and the driver source)
 
 Wine 10 or newer is required; the guide installs it. Wine 9, which Ubuntu
 supplies by default, cannot run seaView.
