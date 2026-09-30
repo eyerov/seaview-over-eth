@@ -42,7 +42,7 @@ BUNDLE_DIR=""
 GITHUB_ZIP_URL="https://github.com/lcgamboa/tty0tty/archive/refs/heads/master.zip"
 
 # Fixed, per-user home for the tty0tty source tree + built module.
-# Keep this in sync with the TTY0TTY_DIR default in start-cp-logger.sh.
+# Keep this in sync with the TTY0TTY_DIR default in start-seaview.sh.
 INSTALL_DIR="${TTY0TTY_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/tty0tty}"
 
 # ---------------------------------------------------------------------------
@@ -267,9 +267,9 @@ ls -l /dev/tnt* 2>/dev/null
 echo
 if [ -f "$INSTALL_DIR/module/tty0tty.ko" ]; then
     echo "Module source + build staged at: $INSTALL_DIR"
-    echo "  (start-cp-logger.sh looks here by default, so TTY0TTY_DIR can be left"
+    echo "  (start-seaview.sh looks here by default, so TTY0TTY_DIR can be left"
     echo "   blank in cp-logger.conf. To be explicit, set:"
     echo "   TTY0TTY_DIR=\"$INSTALL_DIR/module\")"
     echo
 fi
-echo "tty0tty is installed and loaded. You can now run start-cp-logger.sh."
+echo "tty0tty is installed and loaded. You can now run start-seaview.sh."
