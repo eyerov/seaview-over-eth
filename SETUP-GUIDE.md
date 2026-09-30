@@ -12,9 +12,8 @@ first run.
 
 - Ubuntu 24.04
 - The **seaview-over-eth** folder (this one)
-- The seaView installer, `Seaview (Rev 3.1.8.2).exe`, sitting in this folder.
-  It is deliberately not committed to git (80 MB), so a fresh clone will not
-  have it — copy it in from the IMPACT drive if it is missing
+- Nothing else to download: the seaView installer and the driver source are
+  both in this folder
 - The administrator password for the machine
 - The converter's **IP address** (e.g. `192.168.2.125`) and its **raw data
   port** (often `2000`; some converters use `23`)
@@ -121,6 +120,9 @@ rm -rf ~/.wine-seaview
 Installs the virtual serial-port driver (tty0tty) that carries data from the
 converter into seaView.
 
+The driver source is included in this folder (`tty0tty/`), so this works
+without an internet connection.
+
 ```bash
 ./install-tty0tty.sh
 ```
@@ -180,7 +182,6 @@ installation did not complete; run the installer again.
 
 ```bash
 cd ~/seaview-over-eth
-cp seaview.conf.example seaview.conf
 gnome-text-editor seaview.conf
 ```
 
@@ -385,3 +386,174 @@ along with the error message shown on screen.
 | Edit settings | `gnome-text-editor seaview.conf` |
 | Check the connection log | `tail -20 /tmp/socat-seaview.log` |
 | Port to select in seaView | `COM11` |
+
+---
+
+# Technical reference
+
+Everything above is the procedure. This section is the reasoning behind it —
+read it when something does not behave, or before changing the setup.
+
+## Why Wine 10 or newer
+
+**Wine 9 and earlier cannot run seaView at all.** A few seconds after seaView
+opens a serial port the process dies with:
+
+```
+Unhandled exception: page fault on read access to 0x0000000000000000
+ntdll.so+0x35a0b:  mov (%rdi),%rdi
+```
+
+Wine ≤ 9 implements `WaitCommEvent` by spawning a worker thread per wait
+(`dlls/ntdll/unix/serial.c`); that thread can start with a null argument and
+faults on its first dereference. Wine 10 replaced the path with the Wine
+server's async I/O and the crashing function no longer exists.
+
+It matters here specifically because the trigger is a *virtual* port. On a
+real onboard `/dev/ttyS*` port an event is always already pending, so the
+faulty thread is never created and the bug stays hidden. A tty0tty device —
+what this setup uses — creates it every time.
+
+Ubuntu 24.04 ships Wine 9.0, so the distribution package will not do.
+`start-seaview.sh` refuses to launch on anything older than 10 rather than
+let it fail confusingly.
+
+## Why the Wine environment must be 64-bit
+
+`seaView.exe` is a 64-bit binary. The **installer** is 32-bit and runs happily
+in a 32-bit environment — leaving behind an application that can never start,
+failing with `Bad EXE format`. Nothing about the installation reports a
+problem; the failure only appears at launch.
+
+Ubuntu's default `~/.wine` is 32-bit, which is why this setup keeps its own at
+`~/.wine-seaview`. The start script checks and refuses to run against a 32-bit
+one.
+
+## One port, by design
+
+seaView opens and polls **every COM port Windows offers it**, continuously, on
+the thread that also draws its display. The intended end state is therefore
+exactly one port: **COM11 and nothing else.**
+
+That is achievable because of how Wine discovers ports. Its startup scan looks
+at precisely three patterns:
+
+```
+/dev/ttyS*    /dev/ttyUSB*    /dev/ttyACM*
+```
+
+`/dev/tnt*` is **not** among them. A tty0tty device can only become a COM port
+by being named in `HKLM\Software\Wine\Ports`, which is what step 8 of the start
+script does. So the bridge contributes one port and one only, and anything Wine
+auto-detects is an *extra* port seaView will poll.
+
+On a machine with no serial hardware the kernel still creates 32 `/dev/ttyS*`
+nodes, and Wine turns each into a COM port. Measured on this machine:
+
+| | Before (Part 9 skipped) | After |
+|---|---|---|
+| Serial devices Wine exposes | 34 | **1** |
+| Display thread CPU | 97.5% | **1.5–1.8%** |
+| Frames drawn in 20 s | 12 | **2320** |
+| Internal port errors in 20 s | 3466 | **0** |
+
+**There is no way to restrict this from inside Wine.** Tested on Wine 11: an
+environment with every port link deleted and only COM11 registered still came
+back with 33 devices after restarting. The registry key *adds* ports; it never
+limits them. The only lever is what exists in `/dev`, which is why Part 9 works
+on the kernel command line.
+
+This helps CP Logger too: its COM10 also arrives through the registry over a
+tty0tty device, so neither application depends on `/dev/ttyS*` existing.
+
+## Baud rate over the bridge
+
+**The baud rate selected in seaView does nothing.** It configures a virtual
+port with no hardware behind it. The real serial settings — 115200 8N1 for an
+ISA500 at defaults — live in the **converter's own configuration** and must be
+set there.
+
+This is the most common cause of "the port opens but the data is unreadable":
+Wine faithfully applies a baud rate to a virtual port while the converter talks
+at a different one.
+
+## Verifying the connection
+
+```bash
+tail -f /tmp/socat-seaview.log        # "write(" lines mean data is arriving
+cat /dev/tnt1                          # read the raw stream without seaView
+wine reg query "HKLM\Software\Wine\Ports" /v COM11
+```
+
+To test the converter with nothing else in the path:
+
+```bash
+socat - tcp:192.168.2.125:2000
+```
+
+If that shows nothing, the problem is the converter, its IP, its port, or the
+wiring — not this setup.
+
+## Running alongside CP Logger
+
+| | CP Logger | seaView |
+|---|---|---|
+| Wine environment | `~/.wine` (**32-bit**) | `~/.wine-seaview` (**64-bit**) |
+| Runtime | .NET — needs Wine Mono | Qt/C++ — no Mono |
+| COM port | `COM10` | `COM11` |
+| tty0tty pair | e.g. `/dev/tnt2` ↔ `/dev/tnt3` | a **different** pair |
+| Network bridge | its own | its own |
+
+The Wine **program** is shared system-wide; the **environments** are
+independent. One Wine 11 install serves both.
+
+`HKLM\Software\Wine\Ports` lives inside each environment, so COM10 and COM11
+would not actually collide even if both used the same number. Distinct numbers
+are for clarity, so a port name identifies its application.
+
+If both run at once, give each its own tty0tty pair via `TNT_PAIR` in
+`seaview.conf`, set to something CP Logger's config does not use.
+
+## Differences from serial-over-eth
+
+This follows the same architecture as
+[serial-over-eth](https://github.com/eyerov/serial-over-eth) (NOR-CP-Logger).
+Four things differ:
+
+| | serial-over-eth | seaview-over-eth |
+|---|---|---|
+| Wine environment | 32-bit, stock `~/.wine` | **64-bit**, `~/.wine-seaview` |
+| Runtime | .NET — needs Wine Mono | Qt/C++ — **no Mono** |
+| Wine version | 11 in practice | **≥ 10 enforced**; 9 is fatal |
+| Port selection | operator picks a port | **scans every port** — hence Part 9 |
+
+Everything else — socat, tty0tty, the registry mapping, the config and flag
+precedence, and `install-tty0tty.sh` itself — carries over unchanged.
+
+## Installing seaView without the wizard
+
+Part 7 can run headless, which is useful when imaging several machines:
+
+```bash
+cd ~/seaview-over-eth
+WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
+    --root 'C:\Program Files\Impact Subsea\seaView' \
+    --accept-licenses --default-answer --confirm-command
+```
+
+## Known issues
+
+- **The driver does not survive a reboot** when built and loaded this way.
+  `start-seaview.sh` step 1 reloads it automatically, so this is handled — but
+  `lsmod` will show it only after the start script has run once.
+- **Kernel upgrades break the built driver.** Re-run `./install-tty0tty.sh`.
+  Registering it with DKMS would automate this; not wired up yet.
+- **Upstream tty0tty documents testing up to kernel 6.12.x.** Newer kernels may
+  need a source update before it compiles.
+- **Modem control lines do not cross the bridge.** DTR/RTS asserted by Wine on
+  a `tnt` device do not reach the converter's RS485 side. Converters that draw
+  power from handshake pins will not work over Ethernet — power them properly.
+- **RS485 turnaround timing is the converter's problem.** Half-duplex direction
+  control happens inside the converter; the network adds latency and jitter
+  that a tightly-timed polling protocol may not tolerate. See the study
+  report's risk register.
