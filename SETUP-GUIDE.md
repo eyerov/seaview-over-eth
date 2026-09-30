@@ -12,8 +12,9 @@ first run.
 
 - Ubuntu 24.04
 - The **seaview-over-eth** folder (this one)
-- The seaView installer, `Seaview (Rev 3.1.8.2).exe` — it is **not** in this
-  folder; copy it from the IMPACT drive
+- The seaView installer, `Seaview (Rev 3.1.8.2).exe`, sitting in this folder.
+  It is deliberately not committed to git (80 MB), so a fresh clone will not
+  have it — copy it in from the IMPACT drive if it is missing
 - The administrator password for the machine
 - The converter's **IP address** (e.g. `192.168.2.125`) and its **raw data
   port** (often `2000`; some converters use `23`)
@@ -148,11 +149,11 @@ Log out and log back in, or reboot.
 
 ## Part 7 — Install seaView
 
-Copy `Seaview (Rev 3.1.8.2).exe` from the IMPACT drive into your Downloads
-folder, then:
+The installer is in this folder. From here:
 
 ```bash
-WINEPREFIX="$HOME/.wine-seaview" wine ~/Downloads/"Seaview (Rev 3.1.8.2).exe"
+cd ~/seaview-over-eth
+WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe"
 ```
 
 The installer window opens. Work through it and **accept the default
@@ -248,7 +249,7 @@ cd ~/seaview-over-eth
 ```
 
 The script runs through eight numbered steps and then launches seaView. Once
-the program is open, go to its port settings and select **COM10**.
+the program is open, go to its port settings and select **COM11**.
 
 Leaving the terminal open lets you see any errors the script reports.
 
@@ -261,7 +262,7 @@ cd ~/seaview-over-eth
 ./start-seaview.sh
 ```
 
-Then select **COM10** in seaView.
+Then select **COM11** in seaView.
 
 Use the same two commands after a reboot — the script reloads the driver
 automatically. Parts 1–9 do not need repeating.
@@ -275,6 +276,16 @@ so the link survives reopening the program. To stop it:
 pkill socat
 ```
 
+> **If CP Logger is also installed on this machine**, `pkill socat` stops
+> *its* bridge too. Stop only seaView's by matching its converter:
+>
+> ```bash
+> pkill -f "socat.*192.168.2.125"
+> ```
+>
+> seaView uses **COM11** and CP Logger uses **COM10**, so the two never get
+> confused for each other.
+
 ---
 
 ## Bench mode
@@ -286,7 +297,7 @@ network:
 ./start-seaview.sh --transport usb
 ```
 
-The script finds the adapter automatically and maps it to COM10. Parts 5, 6
+The script finds the adapter automatically and maps it to COM11. Parts 5, 6
 and 8 are not needed for this.
 
 In bench mode the baud rate you choose in seaView is real, and should be
@@ -312,7 +323,7 @@ In bench mode the baud rate you choose in seaView is real, and should be
 | `wine: command not found` | Wine is not installed. Run Part 3. |
 | `ERROR: 'socat' is not installed` | Run `sudo apt install -y socat`, then retry. |
 | `ERROR: socat exited immediately` | A previous bridge is still running. Run `pkill socat`, wait 5 seconds, retry. |
-| `COM10` missing from seaView's port list | Close seaView, re-run `./start-seaview.sh`, and wait for step `[8/8]` before opening port settings. |
+| `COM11` missing from seaView's port list | Close seaView, re-run `./start-seaview.sh`, and wait for step `[8/8]` before opening port settings. |
 | `[FAILED] Could not install/load tty0tty` | Usually no internet connection to download the driver source. Check connectivity and re-run Part 5. |
 | Ports show `root root` instead of `root dialout` | Part 6 was skipped. Log out and back in. |
 | `ls /dev/ttyS* \| wc -l` still prints 32 after Part 9 | The GRUB edit did not apply. Open `/etc/default/grub`, check `GRUB_CMDLINE_LINUX_DEFAULT` contains `8250.nr_uarts=1`, then re-run `sudo update-grub` and reboot. |
@@ -347,4 +358,4 @@ along with the error message shown on screen.
 | Stop the bridge | `pkill socat` |
 | Edit settings | `gnome-text-editor seaview.conf` |
 | Check the connection log | `tail -20 /tmp/socat-seaview.log` |
-| Port to select in seaView | `COM10` |
+| Port to select in seaView | `COM11` |

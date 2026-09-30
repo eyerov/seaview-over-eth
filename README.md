@@ -31,7 +31,7 @@ socat                              (bridge)
 /dev/tnt2  <-- tty0tty -->  /dev/tnt3     (virtual null-modem pair)
                                  |
                                  v
-                            Wine COM10
+                            Wine COM11
                                  |
                                  v
                             seaView.exe
@@ -56,8 +56,9 @@ socat and tty0tty entirely and maps a USB adapter straight to the COM port.
 | `tty0tty/` | Upstream module source (git-ignored) |
 
 The seaView installer is **not** committed — it is ~80 MB, past the point
-where git is a sensible home for it. Keep it on the IMPACT drive
-(`Seaview (Rev 3.1.8.2).exe`) and see [Step 3](#step-3--install-seaview).
+where git is a sensible home for it. Keep `Seaview (Rev 3.1.8.2).exe` in the
+working folder (copy it from the IMPACT drive after a fresh clone) and see
+[Step 3](#step-3--install-seaview).
 
 ---
 
@@ -179,7 +180,7 @@ else has a working default.
 | `TRANSPORT` | `ethernet` | or `usb` for a local adapter |
 | `CONVERTER_PORT` | `2000` | must be the **raw data** port, not the admin menu |
 | `TNT_PAIR` | auto-detect | `0`, `2`, `4`, or `6`; pairs are N ↔ N+1 |
-| `WINE_COM_PORT` | `COM10` | what you select inside seaView |
+| `WINE_COM_PORT` | `COM11` | what you select inside seaView |
 | `WINEPREFIX` | `~/.wine-seaview` | must be 64-bit |
 | `USB_PORT` | auto-detect | `usb` transport only; prefers `/dev/serial/by-id/*` |
 
@@ -191,7 +192,7 @@ else has a working default.
 ./start-seaview.sh
 ```
 
-Then select **COM10** in seaView's port settings.
+Then select **COM11** in seaView's port settings.
 
 ```bash
 ./start-seaview.sh --ip 192.168.2.99 --port 4001 --com COM3
@@ -265,7 +266,7 @@ scanning them all.
 ```bash
 tail -f /tmp/socat-seaview.log        # "write(" lines mean data is arriving
 cat /dev/tnt3                          # read the raw stream without Wine
-wine reg query "HKLM\Software\Wine\Ports" /v COM10
+wine reg query "HKLM\Software\Wine\Ports" /v COM11
 ```
 
 To test the converter with nothing else in the path:
@@ -284,12 +285,46 @@ socat - tcp:192.168.2.125:2000
 | Dies ~10 s after start, `page fault ... 0x0` | Wine ≤ 9 | Install Wine 10+ (Step 1) |
 | UI very sluggish, < 1 fps | 32 phantom `ttyS` ports | See [Phantom COM ports](#phantom-com-ports) |
 | Port opens, data is garbage | Converter baud ≠ device baud | Set it in the converter, not seaView |
-| `COM10` missing from seaView's list | Mapping written after seaView started | Re-run `./start-seaview.sh`, wait for step `[8/8]` |
+| `COM11` missing from seaView's list | Mapping written after seaView started | Re-run `./start-seaview.sh`, wait for step `[8/8]` |
 | No data in seaView | Wrong converter IP/port | `socat - tcp:<ip>:<port>`; check raw vs admin port |
 | `socat` exits immediately | Another socat holds the port | `pkill socat`, retry |
 | Everything hangs, no output | socat's first write blocked | Confirm the step-5 placeholder reader started |
 | `/dev/tnt*` root-only | udev rule missing, or no re-login | See `serial-over-eth` README, Step 3 |
 | Module fails to build | Missing kernel headers | `sudo apt install build-essential linux-headers-$(uname -r)` |
+
+---
+
+## Running alongside CP Logger on the same machine
+
+Both applications are deployed together on the FMD machine. They coexist
+cleanly, but the split matters:
+
+| | CP Logger | seaView |
+|---|---|---|
+| Wine prefix | `~/.wine` (**win32**) | `~/.wine-seaview` (**win64**) |
+| Runtime | .NET — needs Wine Mono | Qt/C++ — no Mono |
+| COM port | `COM10` | `COM11` |
+| tty0tty pair | e.g. `/dev/tnt2` ↔ `/dev/tnt3` | a **different** pair, e.g. `/dev/tnt4` ↔ `/dev/tnt5` |
+| socat bridge | its own | its own |
+
+The Wine **binary** is shared system-wide; the **prefixes** are independent.
+One Wine 11 install serves both — `serial-over-eth`'s own README records Wine
+Mono 9.4.0 as "the version verified against `wine-11.0`", so both stacks
+target the same Wine.
+
+`HKLM\Software\Wine\Ports` lives inside each prefix, so COM10 and COM11
+would not actually collide even if both used the same number. Distinct
+numbers are for operator clarity, and so a port name unambiguously identifies
+which application it belongs to.
+
+**If both run at once**, give each its own tty0tty pair — `TNT_PAIR` in
+`seaview.conf`, set to something the CP Logger config does not use. Each
+application gets its own socat bridge to its own converter. Note that
+`pkill socat` stops **both**; kill by pid or by match instead:
+
+```bash
+pkill -f "socat.*<seaview-converter-ip>"
+```
 
 ---
 

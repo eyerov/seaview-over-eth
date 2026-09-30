@@ -31,7 +31,7 @@ TRANSPORT="ethernet"
 CONVERTER_IP=""
 CONVERTER_PORT="2000"
 TNT_PAIR=""
-WINE_COM_PORT="COM10"
+WINE_COM_PORT="COM11"
 SEAVIEW_EXE='C:\Program Files\Impact Subsea\seaView\seaView.exe'
 USB_PORT=""
 WINEPREFIX_OVERRIDE=""
@@ -58,7 +58,7 @@ Options:
   --port PORT           Converter TCP port (default: 2000)
   --tnt-pair N          tty0tty pair index: 0, 2, 4, or 6 (default: auto-detect)
   --usb-port PATH       Serial device for usb transport (default: auto-detect by-id)
-  --com PORT            Wine COM port name, e.g. COM10 (default: COM10)
+  --com PORT            Wine COM port name, e.g. COM11 (default: COM11)
   --exe PATH            Windows path to seaView.exe
   --wineprefix PATH     WINEPREFIX to use (default: \$WINEPREFIX, else ~/.wine-seaview)
   --tty0tty-dir PATH    Path to the tty0tty source tree or its module/ directory
@@ -68,7 +68,7 @@ Config file format (seaview.conf, same directory as this script):
   TRANSPORT="ethernet"
   CONVERTER_IP="192.168.2.125"
   CONVERTER_PORT="2000"
-  WINE_COM_PORT="COM10"
+  WINE_COM_PORT="COM11"
   SEAVIEW_EXE='C:\\Program Files\\Impact Subsea\\seaView\\seaView.exe'
   WINEPREFIX="\$HOME/.wine-seaview"
 EOF
