@@ -1,17 +1,15 @@
 # seaview-over-eth
 
 Runs **Impact Subsea seaView** on an Ubuntu machine, with the sonar or
-altimeter connected over an RS485-to-Ethernet converter instead of a serial
-cable to the PC.
+altimeter reached over an RS485-to-Ethernet converter instead of a serial cable
+to the PC.
 
 seaView is a Windows program. It runs here through Wine, a compatibility layer
 that lets Windows software run on Linux. You do not need to know anything about
 Wine to use it — the setup handles that.
 
-**The seaView installer is in this folder**, along with the scripts and the
-configuration, so there is nothing to hunt down separately. The one thing
-fetched during setup is the virtual serial-port driver, which the installer
-script downloads for you.
+**The seaView installer is in this folder**, along with the launch script and
+the guides, so there is nothing to hunt down separately.
 
 ---
 
@@ -19,8 +17,8 @@ script downloads for you.
 
 | If you want to… | Go to |
 |---|---|
-| **Set this up on a new machine** | **[SETUP-GUIDE.md](SETUP-GUIDE.md)** — start to finish, about 30 minutes |
-| Understand why it is built this way | [STUDY-REPORT.md](STUDY-REPORT.md) — design analysis and risks |
+| **Set this up on a new machine** | **[SETUP-GUIDE.md](SETUP-GUIDE.md)** — start to finish, about 20 minutes |
+| Understand why it is built this way | [STUDY-REPORT.md](STUDY-REPORT.md) — design analysis and findings |
 
 Once set up, day-to-day use is two commands:
 
@@ -29,40 +27,31 @@ cd ~/seaview-over-eth
 ./start-seaview.sh
 ```
 
-Then pick **COM11** in seaView's port settings.
-
 ---
 
 ## How it connects
 
-The altimeter talks RS485. Rather than running a serial cable to the PC, an
-RS485-to-Ethernet converter puts that data on the network, and this setup
-delivers it to seaView as an ordinary serial port:
+The sensor talks RS485. Rather than running a serial cable to the PC, an
+RS485-to-Ethernet converter puts that data on the network, and **seaView
+connects to it directly over TCP**:
 
 ```
 ISA500 / sonar head
     |  RS485
     v
-RS485-to-Ethernet converter        (e.g. 192.168.2.125:2000)
+RS485-to-Ethernet converter        (e.g. 192.168.2.181:23)
     |  network
     v
-socat                              (carries the data in)
-    |
-    v
-/dev/tnt0  <---- virtual cable ---->  /dev/tnt1
-                                          |
-                                          v
-                                    seaView's COM11
+seaView  —  "Serial Over LAN" port
 ```
 
-The two `/dev/tnt` devices behave like a serial cable with its two ends in the
-same machine. Data arrives from the network at one end, and seaView reads it
-from the other as **COM11**, exactly as though the instrument were plugged into
-a serial port on the PC.
+That is the whole path. seaView has built-in support for serial-over-LAN, so
+there is no bridge, no virtual serial port, and no kernel driver in between.
+The converter's address is configured **inside seaView**, under
+**Comms → + → Add a Serial Over Lan Port**.
 
-`start-seaview.sh` builds this path each time it runs, then opens seaView. It
-prints eight numbered steps as it goes, so a failure points at the stage that
-caused it.
+`start-seaview.sh` checks the machine is in a fit state and launches the
+application. It does not carry any data.
 
 ### Why an Ethernet converter
 
@@ -78,37 +67,31 @@ a particular socket.
 | File | What it is |
 |---|---|
 | `SETUP-GUIDE.md` | Installation, everyday use, troubleshooting, technical reference |
-| `STUDY-REPORT.md` | Why the architecture is what it is; risks and open questions |
-| `start-seaview.sh` | Builds the connection and launches seaView |
-| `install-tty0tty.sh` | Installs the virtual serial-port driver |
-| `seaview.conf` | Your settings — converter address, port name, paths |
+| `STUDY-REPORT.md` | Why the architecture is what it is; findings and open questions |
+| `start-seaview.sh` | Pre-launch checks, then starts seaView |
+| `seaview.conf` | Your settings — converter address, Wine paths |
 | `Seaview (Rev 3.1.8.2).exe` | The seaView installer |
-| `tty0tty/` | Driver source — not in the repository; `install-tty0tty.sh` fetches it |
-
----
-
-## Testing without a converter
-
-The whole setup can be checked before any hardware is connected:
-
-```bash
-./start-seaview.sh --transport loopback --feed
-```
-
-This builds the same COM11 path with a test pattern behind it instead of a
-converter, so a machine can be confirmed ready before it goes to the vessel.
 
 ---
 
 ## Alongside CP Logger
 
-Both applications can run on the same machine. seaView uses **COM11**; CP
-Logger uses **COM10**. They keep separate Windows environments and separate
-network bridges, so neither disturbs the other.
+Both applications can run on the same machine without interfering.
 
-One thing to know: `pkill socat` stops **both**. To stop only seaView's link,
-match its converter address —
-`pkill -f "socat.*192.168.2.125"`.
+CP Logger uses the [serial-over-eth](https://github.com/eyerov/serial-over-eth)
+setup — socat and a tty0tty virtual serial port bridged into a Wine COM port —
+because NOR-CPlogger has no network option and must be handed something that
+looks like a COM port. **seaView needs none of that**, because it speaks to the
+converter itself.
+
+So the two share a machine and a Wine installation, but not an architecture.
+Each keeps its own Wine environment:
+
+| | CP Logger | seaView |
+|---|---|---|
+| Wine environment | `~/.wine` (32-bit) | `~/.wine-seaview` (64-bit) |
+| Runtime | .NET — needs Wine Mono | Qt/C++ — no Mono |
+| Path to the device | socat → tty0tty → COM10 | direct TCP |
 
 ---
 
@@ -116,8 +99,8 @@ match its converter address —
 
 - Ubuntu 24.04
 - An RS485-to-Ethernet converter, reachable on the network
-- Administrator (sudo) access on the machine, for first-time setup only
-- An internet connection during setup (for Wine and the driver source)
+- Administrator (sudo) access, for first-time setup only
+- An internet connection during setup (to install Wine)
 
 Wine 10 or newer is required; the guide installs it. Wine 9, which Ubuntu
-supplies by default, cannot run seaView.
+supplies by default, cannot run seaView reliably.
