@@ -14,6 +14,9 @@
 # converter address is configured inside seaView, not here; CONVERTER_IP below
 # is used solely for a reachability check before launch.
 #
+# The converter's address lives inside seaView, not here. --ip is available
+# purely as an optional pre-launch reachability check when troubleshooting.
+#
 # Run ./start-seaview.sh --help for usage.
 
 set -u
@@ -23,7 +26,6 @@ SEAVIEW_EXE='C:\Program Files\Impact Subsea\seaView\seaView.exe'
 CONVERTER_IP=""
 CONVERTER_PORT="23"
 WINEPREFIX_OVERRIDE=""
-SKIP_CHECK=0
 CONFIG_FILE="$(dirname "$(readlink -f "$0")")/seaview.conf"
 
 # Wine 9.x and earlier crash within seconds of seaView opening a serial port.
@@ -36,15 +38,14 @@ Usage: $(basename "$0") [options]
 
 Options:
   --config FILE       Config file (default: ./seaview.conf if present)
-  --ip IP             Converter IP, for the pre-launch reachability check
-  --port PORT         Converter TCP port (default: 23)
+  --ip IP             Optional: ping/connect-test a converter before launching
+  --port PORT         Port for --ip (default: 23)
   --exe PATH          Windows path to seaView.exe
   --wineprefix PATH   WINEPREFIX to use (default: ~/.wine-seaview)
-  --no-check          Skip the converter reachability check
   -h, --help          Show this help
 
-The converter address seaView actually uses is set inside seaView itself,
-under Comms -> + -> Add a Serial Over Lan Port. See SETUP-GUIDE.md Part 8.
+The converter address seaView uses is set inside seaView itself, under
+Comms -> + -> Add a Serial Over Lan Port. See SETUP-GUIDE.md Part 7.
 EOF
 }
 
@@ -68,7 +69,6 @@ while [ $# -gt 0 ]; do
         --port)       CONVERTER_PORT="$2"; shift 2 ;;
         --exe)        SEAVIEW_EXE="$2"; shift 2 ;;
         --wineprefix) WINEPREFIX_OVERRIDE="$2"; shift 2 ;;
-        --no-check)   SKIP_CHECK=1; shift ;;
         -h|--help)    usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
     esac
@@ -159,8 +159,8 @@ fi
 # confusing "no devices found" into an obvious network message.
 # ---------------------------------------------------------------------------
 echo "[4/4] Checking the converter..."
-if [ "$SKIP_CHECK" -eq 1 ] || [ -z "$CONVERTER_IP" ]; then
-    echo "  Skipped (no CONVERTER_IP set)."
+if [ -z "$CONVERTER_IP" ]; then
+    echo "  Skipped -- pass --ip <address> to test a converter before launching."
 else
     # A plain TCP connect, not a data read: once seaView has put the sensor
     # into binary mode it stays silent until polled, so waiting for bytes
@@ -180,7 +180,7 @@ fi
 echo
 echo "Launching seaView."
 echo "  Connect to the sensor via  Comms -> +  ->  Add a Serial Over Lan Port"
-echo "  IP ${CONVERTER_IP:-<converter>}   Port ${CONVERTER_PORT}   Protocol TCP   Encoding Raw"
+echo "  (IP and port of your converter, Protocol TCP, Encoding Raw)"
 echo
 
 cd "$WINEPREFIX/drive_c/Program Files/Impact Subsea/seaView" 2>/dev/null \
