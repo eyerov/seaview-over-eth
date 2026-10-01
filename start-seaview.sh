@@ -414,10 +414,21 @@ echo "[6/8] (Re)starting socat bridge: ${CONVERTER_IP}:${CONVERTER_PORT} <-> ${T
 pkill -f "socat.*${CONVERTER_IP}:${CONVERTER_PORT}" 2>/dev/null
 sleep 1
 
-nohup socat -d -d -T5 \
-    tcp:${CONVERTER_IP}:${CONVERTER_PORT},forever,interval=1,keepalive,keepidle=5,keepintvl=3,keepcnt=3 \
-    ${TNT_SOCAT_SIDE},raw,echo=0 \
-    > "$SOCAT_LOG" 2>&1 &
+# No -T (inactivity timeout): an instrument may legitimately go quiet, and
+# -T makes socat *exit*, not reconnect -- the bridge then stays dead with no
+# indication. A dead peer is detected by TCP keepalive instead.
+#
+# Wrapped in a restart loop so the bridge survives a converter reboot or a
+# dropped link; without it, one blip ends the session silently.
+nohup bash -c '
+    while :; do
+        socat -d -d \
+            tcp:'"${CONVERTER_IP}"':'"${CONVERTER_PORT}"',forever,interval=1,keepalive,keepidle=5,keepintvl=3,keepcnt=3 \
+            '"${TNT_SOCAT_SIDE}"',raw,echo=0
+        echo "$(date "+%Y/%m/%d %H:%M:%S") bridge exited, restarting in 2s" >&2
+        sleep 2
+    done
+' > "$SOCAT_LOG" 2>&1 &
 
 SOCAT_PID=$!
 sleep 2
