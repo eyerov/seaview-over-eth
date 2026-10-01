@@ -224,8 +224,8 @@ cd ~/seaview-over-eth
 ./start-seaview.sh
 ```
 
-If the Serial Over LAN port is not already listed in the Comms panel, add it
-again as in Part 7 — it takes a few seconds.
+**You will need to add the Serial Over LAN port each time** — seaView does not
+remember it between runs. Repeat the steps from Part 7; it takes a few seconds.
 
 Parts 1–6 do not need repeating.
 
@@ -394,6 +394,29 @@ Note the FMD app is a discrete-reading workflow — you position the sensor and
 press **Ping**. For a continuously updating display, the **Altimeter** app is
 the one to use.
 
+## Removing a leftover COM port
+
+seaView uses no serial port in this setup, so the Comms panel should contain
+only `NETWORK` plus whatever Serial Over LAN port you add.
+
+If a `COMxx` entry appears, it is left over from an earlier configuration —
+most likely a machine that once ran the bridged setup described below. It costs
+nothing to leave, but seaView will poll it. Remove it with:
+
+```bash
+WINEPREFIX="$HOME/.wine-seaview" wine reg delete 'HKLM\Software\Wine\Ports' /v COM11 /f
+rm -f ~/.wine-seaview/dosdevices/com11
+WINEPREFIX="$HOME/.wine-seaview" wineserver -k
+```
+
+substituting the port number shown. Confirm with:
+
+```bash
+WINEPREFIX="$HOME/.wine-seaview" wine reg query 'HKLM\HARDWARE\DEVICEMAP\SERIALCOMM'
+```
+
+which should report no serial devices at all.
+
 ## Why not socat and tty0tty
 
 An earlier version of this setup bridged the converter into a virtual serial
@@ -412,8 +435,9 @@ same architecture, deliberately.
 
 ## Known issues
 
-- **The Serial Over LAN port may not persist across restarts.** If the Comms
-  panel is empty on launch, re-add it as in Part 7.
+- **The Serial Over LAN port does not persist across restarts.** Confirmed on
+  2026-10-01: after a clean restart the Comms panel contains only `NETWORK`.
+  Re-adding it is part of everyday use, not a fault — it takes a few seconds.
 - **Most converters serve one TCP session at a time.** If something else is
   connected — a terminal, a test script, another copy of seaView — the port
   will not open.
