@@ -22,7 +22,7 @@ the [Everyday use](#everyday-use) section. Allow about 20 minutes.
 ## Part 1 — Open the folder
 
 ```bash
-cd ~/Downloads/seaview-over-eth
+cd ~/Downloads/seaview-over-eth-master
 ```
 
 Confirm you are in the right place:
@@ -101,7 +101,7 @@ with `rm -rf ~/.wine-seaview` and run the command again.
 ## Part 5 — Install seaView
 
 ```bash
-cd ~/Downloads/seaview-over-eth
+cd ~/Downloads/seaview-over-eth-master-master
 WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
     --accept-licenses --default-answer --confirm-command
 ```
@@ -115,7 +115,7 @@ Rather than wait, open a **second terminal** and move to the same folder to
 carry on with the remaining steps:
 
 ```bash
-cd ~/Downloads/seaview-over-eth
+cd ~/Downloads/seaview-over-eth-master
 
 WINEPREFIX="$HOME/.wine-seaview" find ~/.wine-seaview/drive_c -name 'seaView.exe' -exec winepath -w {} \;
 ```
@@ -220,7 +220,7 @@ list on the left.
 ## Everyday use
 Open Terminal and  type
 ```bash
-cd ~/Downloads/seaview-over-eth
+cd ~/Downloads/seaview-over-eth-master
 ./start-seaview.sh
 ```
 
@@ -262,7 +262,7 @@ wine --version
 
 | Task | Command |
 |---|---|
-| Go to the folder | `cd ~/Downloads/seaview-over-eth` |
+| Go to the folder | `cd ~/Downloads/seaview-over-eth-master` |
 | Start seaView | `./start-seaview.sh` |
 | Edit settings | `gnome-text-editor seaview.conf` |
 | Connect to the sensor | Comms → **+** → Add a Serial Over Lan Port |
