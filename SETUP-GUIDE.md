@@ -13,7 +13,7 @@ the [Everyday use](#everyday-use) section. Allow about 20 minutes.
 - This folder, including the installer `Seaview (Rev 3.1.8.2).exe`
 - The administrator password for the machine
 - The converter's **IP address** (e.g. `192.168.2.181`) and its **port**
-  (often `23`) — you type these into seaView in Part 7
+  (often `23`) — you put these in `seaview.conf` in Part 7
 - The converter powered on, wired to the sensor, and on the same network
 - An internet connection, to install Wine
 
@@ -177,43 +177,50 @@ This should print **`0`**. If it still prints `32`, see
 
 ---
 
-## Part 7 — Start seaView and connect to the sensor
+## Part 7 — Configure and start seaView
+
+Put the converter's address in the configuration file:
+
+```bash
+cd ~/seaview-over-eth
+gnome-text-editor seaview.conf
+```
+
+```
+CONVERTER_IP="192.168.2.181"
+CONVERTER_PORT="23"
+```
+
+Change only the text inside the quotation marks, and keep them. Save with
+**Ctrl + S** and close the editor.
+
+Then start it:
 
 ```bash
 ./start-seaview.sh
 ```
 
-The script runs four checks and then opens seaView. Near the top you should
-see:
+The script runs five checks and opens seaView. You should see:
 
 ```
-Wine version: wine-11.0 (OK)
-64-bit prefix (OK)
-Checking for phantom serial ports... None (as designed).
+[4/5] Checking the converter...
+  192.168.2.181:23 reachable, accepting connections.
+[5/5] Pre-filling seaView's device search...
+  Search will open on NETWORK, 192.168.2.181:23.
 ```
 
-Then, in seaView:
-
-1. In the **Comms** panel on the right, click the **+**
-2. Choose **Add a Serial Over Lan Port**
-3. Fill in:
-   - **IP Address** — your converter, e.g. `192.168.2.181`
-   - **Port** — e.g. `23`
-   - **Protocol** — `TCP`
-   - **Encoding** — `Raw`
-4. Click **Add**
-
-The port appears in the Comms panel and should show **Status: Open** with a
-non-zero **Receive** rate.
-
-5. In the **Devices** panel, click the **🔍** button
+In seaView, the **Devices** panel opens with its search already pointed at the
+network and your converter's address filled in. Press **Search**.
 
 The sensor appears as a card — model, serial number, firmware, and the
-connection it was found on, e.g.
-`SOL: 192.168.2.181:23 (RS485 9600)`.
+connection it was found on, e.g. `SOL: 192.168.2.181:23 (RS485 9600)`.
 
 From there, add the app you need (**FMD**, **Altimeter**, **AHRS** …) from the
 list on the left.
+
+> **If the search finds nothing**, add the port by hand instead: in the
+> **Comms** panel click **+**, choose **Add a Serial Over Lan Port**, and enter
+> your converter's IP and port with **Protocol** `TCP` and **Encoding** `Raw`.
 
 ---
 
@@ -224,8 +231,8 @@ cd ~/seaview-over-eth
 ./start-seaview.sh
 ```
 
-If the Serial Over LAN port is not listed in the Comms panel, add it again as
-in Part 7 — it takes a few seconds.
+The search opens pre-filled each time, so connecting is one press of
+**Search** in the Devices panel.
 
 Parts 1–7 do not need repeating.
 
@@ -238,7 +245,8 @@ Parts 1–7 do not need repeating.
 | seaView closes by itself shortly after starting | Wine is too old. `wine --version` must be 10 or higher. Redo Part 3. |
 | `Bad EXE format` | The Wine environment is 32-bit. Redo Part 4. |
 | seaView is slow and jerky | Part 6 was skipped or did not apply. Check `ls /dev/ttyS* 2>/dev/null \| wc -l` — it should be `0`. |
-| `No Devices Detected` after adding the port | Check the Comms panel shows the port **Open** with a non-zero Receive rate. If it is 0 B/s, the converter address or port is wrong. |
+| `No Devices Detected` after pressing Search | Check `CONVERTER_IP` and `CONVERTER_PORT` in `seaview.conf`, and that step `[4/5]` reported the converter reachable. |
+| `WARNING: ... does not respond to ping` | The converter is off, or its network cable is unplugged. Check the link light on the adapter. |
 | The Serial Over LAN port will not open | The converter is unreachable, or something else is holding its single session. `ping` it, and close any other software talking to it. |
 | Device found but readings look wrong | The converter's own serial settings do not match the sensor. seaView shows what it negotiated, e.g. `(RS485 9600)` — compare with the converter's web page. |
 | `Permission denied` running the script | Part 2 was skipped. |
@@ -393,6 +401,27 @@ Things worth trying, best first:
 Note the FMD app is a discrete-reading workflow — you position the sensor and
 press **Ping**. For a continuously updating display, the **Altimeter** app is
 the one to use.
+
+## How the address gets into seaView
+
+seaView keeps its settings in
+
+```
+~/.wine-seaview/drive_c/users/<you>/AppData/Roaming/Impact Subsea/seaView/seaview.xml
+```
+
+and reads `searchIp` and `searchIpPort` from it at startup. Step `[5/5]` writes
+the values from `seaview.conf` into those fields, which is why the Devices
+search opens on **NETWORK** with the address already filled in.
+
+It stops one press short of connecting, and that is a limit of the
+application rather than a choice: seaView has **no command-line interface**
+(`--help` just opens the window, and the binary carries no option strings), and
+its settings file has no entry for a Serial Over LAN port — only for the search
+fields. So the port itself cannot be created from outside the application.
+
+The file is rewritten by seaView when it exits, so the script only touches it
+while seaView is not running.
 
 ## Removing a leftover COM port
 
