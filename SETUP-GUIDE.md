@@ -109,7 +109,20 @@ WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
 That installs without the wizard, which is quicker and repeatable. To use the
 wizard instead, leave off everything after the `.exe` and accept the defaults.
 
-Confirm it landed:
+**This takes a few minutes, and the terminal stays busy until it finishes.**
+Rather than wait, open a **second terminal** and move to the same folder to
+carry on with the remaining steps:
+
+```bash
+cd ~/seaview-over-eth
+```
+
+Leave the first terminal alone until it reports the installation has finished.
+
+> **Do not reboot in Part 6 until the install has completed.** Rebooting part
+> way through leaves seaView half-installed, and Part 7 will not start it.
+
+Once it has finished, confirm it landed:
 
 ```bash
 WINEPREFIX="$HOME/.wine-seaview" find ~/.wine-seaview/drive_c -name 'seaView.exe' -exec winepath -w {} \;
