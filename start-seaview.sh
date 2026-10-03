@@ -183,6 +183,42 @@ echo "  Connect to the sensor via  Comms -> +  ->  Add a Serial Over Lan Port"
 echo "  (IP and port of your converter, Protocol TCP, Encoding Raw)"
 echo
 
-cd "$WINEPREFIX/drive_c/Program Files/Impact Subsea/seaView" 2>/dev/null \
-    || { echo "ERROR: seaView is not installed in $WINEPREFIX -- see SETUP-GUIDE.md Part 5." >&2; exit 1; }
-exec wine seaView.exe "$@"
+# ---------------------------------------------------------------------------
+# Locate seaView.
+#
+# The installer is 32-bit, so Wine's wizard puts the application under
+# "Program Files (x86)" by default, while a headless install given --root can
+# put it under "Program Files". Both are normal, so look in both rather than
+# assuming one -- and honour SEAVIEW_EXE / --exe first, which is the whole
+# point of having that setting.
+# ---------------------------------------------------------------------------
+win_to_unix() {
+    # C:\Program Files\...\seaView.exe  ->  $WINEPREFIX/drive_c/Program Files/.../seaView.exe
+    local p="$1"
+    p="${p#[A-Za-z]:}"
+    printf '%s' "$WINEPREFIX/drive_c${p//\\//}"
+}
+
+SEAVIEW_PATH=""
+if [ -n "${SEAVIEW_EXE:-}" ]; then
+    cand=$(win_to_unix "$SEAVIEW_EXE")
+    [ -f "$cand" ] && SEAVIEW_PATH="$cand"
+fi
+if [ -z "$SEAVIEW_PATH" ]; then
+    for d in "$WINEPREFIX/drive_c/Program Files (x86)/Impact Subsea/seaView" \
+             "$WINEPREFIX/drive_c/Program Files/Impact Subsea/seaView"; do
+        [ -f "$d/seaView.exe" ] && { SEAVIEW_PATH="$d/seaView.exe"; break; }
+    done
+fi
+if [ -z "$SEAVIEW_PATH" ]; then
+    SEAVIEW_PATH=$(find "$WINEPREFIX/drive_c" -maxdepth 5 -name 'seaView.exe' -print -quit 2>/dev/null)
+fi
+if [ -z "$SEAVIEW_PATH" ]; then
+    echo "  ERROR: seaView is not installed in $WINEPREFIX." >&2
+    echo "         See SETUP-GUIDE.md Part 5. Looked in Program Files and" >&2
+    echo "         Program Files (x86), and searched drive_c." >&2
+    exit 1
+fi
+
+cd "$(dirname "$SEAVIEW_PATH")" || exit 1
+exec wine "$(basename "$SEAVIEW_PATH")" "$@"

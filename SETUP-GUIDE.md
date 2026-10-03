@@ -101,21 +101,30 @@ with `rm -rf ~/.wine-seaview` and run the command again.
 ## Part 5 — Install seaView
 
 ```bash
- WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
->     --root 'C:\Program Files\Impact Subsea\seaView' \
->     --accept-licenses --default-answer --confirm-command
+cd ~/seaview-over-eth
+WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
+    --accept-licenses --default-answer --confirm-command
 ```
-Confirm where it landed:
+
+That installs without the wizard, which is quicker and repeatable. To use the
+wizard instead, leave off everything after the `.exe` and accept the defaults.
+
+Confirm it landed:
 
 ```bash
 WINEPREFIX="$HOME/.wine-seaview" find ~/.wine-seaview/drive_c -name 'seaView.exe' -exec winepath -w {} \;
 ```
 
-This should print:
+This prints one of:
 
 ```
+C:\Program Files (x86)\Impact Subsea\seaView\seaView.exe
 C:\Program Files\Impact Subsea\seaView\seaView.exe
 ```
+
+**Either is fine.** The installer is 32-bit, so it usually chooses
+`Program Files (x86)`; `start-seaview.sh` looks in both and uses whichever
+exists, so there is nothing to change.
 
 If nothing is printed, the installation did not complete; run it again.
 
