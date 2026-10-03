@@ -2,7 +2,7 @@
 
 **For Ubuntu 24.04**
 
-Sets up seaView on a new machine. Parts 1–8 are one-time setup; after that, use
+Sets up seaView on a new machine. Parts 1–7 are one-time setup; after that, use
 the [Everyday use](#everyday-use) section. Allow about 20 minutes.
 
 ---
@@ -217,39 +217,7 @@ list on the left.
 
 ---
 
-## Part 8 — Add a desktop icon (optional)
-
-So seaView can be started by clicking an icon instead of typing a command:
-
-```bash
-./start-seaview.sh --install-desktop-entry
-```
-
-This adds **seaView** to the applications menu and puts an icon on the desktop,
-using the application's own artwork. The icon runs this script, so the startup
-checks still happen — they just go to a log file instead of the terminal:
-
-```
-~/.local/state/seaview-over-eth.log
-```
-
-If a check fails there is no terminal to print to, so the script shows an error
-dialog instead of appearing to do nothing.
-
-It also removes the shortcuts the Wine installer created. Those launch seaView
-directly, skipping every check this setup makes, so having both would be a trap.
-
-To undo it:
-
-```bash
-./start-seaview.sh --remove-desktop-entry
-```
-
----
-
 ## Everyday use
-
-Click the **seaView** icon, or:
 
 ```bash
 cd ~/seaview-over-eth
@@ -259,7 +227,7 @@ cd ~/seaview-over-eth
 If the Serial Over LAN port is not listed in the Comms panel, add it again as
 in Part 7 — it takes a few seconds.
 
-Parts 1–8 do not need repeating.
+Parts 1–7 do not need repeating.
 
 ---
 
@@ -274,7 +242,6 @@ Parts 1–8 do not need repeating.
 | The Serial Over LAN port will not open | The converter is unreachable, or something else is holding its single session. `ping` it, and close any other software talking to it. |
 | Device found but readings look wrong | The converter's own serial settings do not match the sensor. seaView shows what it negotiated, e.g. `(RS485 9600)` — compare with the converter's web page. |
 | `Permission denied` running the script | Part 2 was skipped. |
-| Clicking the desktop icon appears to do nothing | Check `~/.local/state/seaview-over-eth.log` — the startup checks write there when there is no terminal. |
 | `wine: command not found` | Run Part 3. |
 | Still 32 ports after Part 6 | The GRUB edit did not apply. Check `/etc/default/grub` contains `8250.nr_uarts=0`, re-run `sudo update-grub`, reboot. |
 

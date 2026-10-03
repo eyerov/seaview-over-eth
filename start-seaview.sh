@@ -27,98 +27,10 @@ CONVERTER_IP=""
 CONVERTER_PORT="23"
 WINEPREFIX_OVERRIDE=""
 CONFIG_FILE="$(dirname "$(readlink -f "$0")")/seaview.conf"
-SELF="$(readlink -f "$0")"
-ACTION=""
-
-DESKTOP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/seaview-over-eth.desktop"
-ICON_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps/seaview-over-eth.png"
-LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/seaview-over-eth.log"
 
 # Wine 9.x and earlier crash within seconds of seaView opening a serial port.
 # seaView no longer needs one, but it still enumerates them, so the floor stays.
 WINE_MIN_MAJOR=10
-
-# Report a fatal error. Launched from a desktop icon there is no terminal to
-# print to, so without this a failed check looks like "clicking does nothing".
-fail() {
-    echo "  ERROR: $1" >&2
-    [ -n "${2:-}" ] && echo "$2" >&2
-    if [ ! -t 1 ] && command -v zenity >/dev/null 2>&1; then
-        zenity --error --no-wrap --title="seaView" \
-               --text="<b>seaView could not start</b>\n\n$1\n\n<small>Details: $LOG_FILE</small>" \
-               2>/dev/null &
-    fi
-    exit 1
-}
-
-install_desktop_entry() {
-    local appdir icon_src tmpdir best
-    appdir="$WINEPREFIX/drive_c/Program Files/Impact Subsea/seaView"
-    [ -d "$appdir" ] || { echo "ERROR: seaView is not installed in $WINEPREFIX." >&2; exit 1; }
-
-    # Icon: seaView ships a multi-size .ico; take the largest and convert it.
-    icon_src="$appdir/seaView.ico"
-    mkdir -p "$(dirname "$ICON_FILE")"
-    if [ -f "$icon_src" ] && command -v convert >/dev/null 2>&1; then
-        tmpdir=$(mktemp -d)
-        if convert "$icon_src" "$tmpdir/i_%d.png" 2>/dev/null; then
-            best=$(for f in "$tmpdir"/i_*.png; do
-                       echo "$(identify -format '%w' "$f" 2>/dev/null || echo 0) $f"
-                   done | sort -rn | head -1 | cut -d' ' -f2-)
-            [ -n "$best" ] && cp "$best" "$ICON_FILE"
-        fi
-        rm -rf "$tmpdir"
-    fi
-    [ -f "$ICON_FILE" ] || echo "  (no icon extracted; the entry will use a generic one)"
-
-    mkdir -p "$(dirname "$DESKTOP_FILE")"
-    cat > "$DESKTOP_FILE" <<EOF
-[Desktop Entry]
-Type=Application
-Name=seaView
-GenericName=Impact Subsea sonar and altimeter
-Comment=Connects to the sensor over Ethernet
-Exec=$SELF
-Icon=${ICON_FILE:-seaview-over-eth}
-Terminal=false
-StartupNotify=true
-StartupWMClass=seaview.exe
-Categories=Science;Engineering;
-Keywords=sonar;altimeter;ISA500;subsea;seaview;
-EOF
-    chmod +x "$DESKTOP_FILE"
-    echo "  Menu entry:  $DESKTOP_FILE"
-
-    # The Wine installer leaves entries that launch seaView.exe directly,
-    # bypassing every check this script makes. Remove them so there is one
-    # obvious way to start the application.
-    local removed=0
-    for stale in "$HOME/Desktop/seaView.desktop" "$HOME/Desktop/seaView.lnk" \
-                 "${XDG_DATA_HOME:-$HOME/.local/share}/applications/wine/Programs/seaView"; do
-        if [ -e "$stale" ]; then rm -rf "$stale"; removed=1; fi
-    done
-    [ "$removed" -eq 1 ] && echo "  Removed the Wine installer's entries (they skipped the startup checks)."
-
-    if [ -d "$HOME/Desktop" ]; then
-        cp "$DESKTOP_FILE" "$HOME/Desktop/seaView.desktop"
-        chmod +x "$HOME/Desktop/seaView.desktop"
-        gio set "$HOME/Desktop/seaView.desktop" metadata::trusted true 2>/dev/null
-        echo "  Desktop icon: $HOME/Desktop/seaView.desktop"
-    fi
-
-    command -v update-desktop-database >/dev/null 2>&1 && \
-        update-desktop-database "${XDG_DATA_HOME:-$HOME/.local/share}/applications" 2>/dev/null
-    command -v gtk-update-icon-cache >/dev/null 2>&1 && \
-        gtk-update-icon-cache -f -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" 2>/dev/null
-    echo "  Done. 'seaView' is now in the applications menu."
-}
-
-remove_desktop_entry() {
-    rm -f "$DESKTOP_FILE" "$ICON_FILE" "$HOME/Desktop/seaView.desktop"
-    command -v update-desktop-database >/dev/null 2>&1 && \
-        update-desktop-database "${XDG_DATA_HOME:-$HOME/.local/share}/applications" 2>/dev/null
-    echo "  Removed."
-}
 
 usage() {
     cat <<EOF
@@ -130,9 +42,6 @@ Options:
   --port PORT         Port for --ip (default: 23)
   --exe PATH          Windows path to seaView.exe
   --wineprefix PATH   WINEPREFIX to use (default: ~/.wine-seaview)
-  --install-desktop-entry   Add a "seaView" icon to the applications menu
-                            and the desktop, then exit
-  --remove-desktop-entry    Remove them again, then exit
   -h, --help          Show this help
 
 The converter address seaView uses is set inside seaView itself, under
@@ -160,8 +69,6 @@ while [ $# -gt 0 ]; do
         --port)       CONVERTER_PORT="$2"; shift 2 ;;
         --exe)        SEAVIEW_EXE="$2"; shift 2 ;;
         --wineprefix) WINEPREFIX_OVERRIDE="$2"; shift 2 ;;
-        --install-desktop-entry) ACTION=install_desktop ;  shift ;;
-        --remove-desktop-entry)  ACTION=remove_desktop  ;  shift ;;
         -h|--help)    usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
     esac
@@ -177,32 +84,24 @@ fi
 export WINEDEBUG="${WINEDEBUG:--all}"
 echo "Using WINEPREFIX: $WINEPREFIX"
 
-case "$ACTION" in
-    install_desktop) install_desktop_entry; exit 0 ;;
-    remove_desktop)  remove_desktop_entry;  exit 0 ;;
-esac
-
-# No terminal (launched from the icon)? Keep a log, so a failure is diagnosable.
-if [ ! -t 1 ]; then
-    mkdir -p "$(dirname "$LOG_FILE")"
-    exec >>"$LOG_FILE" 2>&1
-    echo "=== $(date "+%Y-%m-%d %H:%M:%S") launched from desktop entry ==="
-fi
-
 # ---------------------------------------------------------------------------
 # [1/4] Wine present and new enough
 # ---------------------------------------------------------------------------
 echo "[1/4] Checking Wine..."
 if ! command -v wine >/dev/null 2>&1; then
-    fail "Wine is not installed." "See SETUP-GUIDE.md Part 3."
+    echo "  ERROR: wine is not installed. See SETUP-GUIDE.md Part 3." >&2
+    exit 1
 fi
 WINE_VER_RAW="$(wine --version 2>/dev/null | head -1)"
 WINE_MAJOR="$(printf '%s' "$WINE_VER_RAW" | sed -n 's/^wine-\([0-9]\{1,\}\).*/\1/p')"
 if [ -z "$WINE_MAJOR" ]; then
     echo "  WARNING: could not parse Wine version from '$WINE_VER_RAW'; continuing." >&2
 elif [ "$WINE_MAJOR" -lt "$WINE_MIN_MAJOR" ]; then
-    fail "Wine $WINE_VER_RAW is too old; seaView needs ${WINE_MIN_MAJOR}.0 or newer." \
-         "Ubuntu's own package is 9.0. Install WineHQ's build -- SETUP-GUIDE.md Part 3."
+    cat >&2 <<EOF
+  ERROR: Wine $WINE_VER_RAW is too old; seaView needs ${WINE_MIN_MAJOR}.0 or newer.
+         Ubuntu's own package is 9.0. Install WineHQ's build -- SETUP-GUIDE.md Part 3.
+EOF
+    exit 1
 fi
 echo "  $WINE_VER_RAW (OK)"
 
@@ -216,8 +115,12 @@ echo "  $WINE_VER_RAW (OK)"
 echo "[2/4] Checking Wine environment..."
 if [ -f "$WINEPREFIX/system.reg" ]; then
     if ! head -5 "$WINEPREFIX/system.reg" | grep -q '#arch=win64'; then
-        fail "The Wine environment is 32-bit, but seaView is 64-bit." \
-             "Recreate it -- see SETUP-GUIDE.md Part 4."
+        cat >&2 <<EOF
+  ERROR: $WINEPREFIX is 32-bit, but seaView.exe is 64-bit ("Bad EXE format").
+         Recreate it:
+           WINEARCH=win64 WINEPREFIX="$WINEPREFIX" WINEDLLOVERRIDES="mscoree,mshtml=" wineboot -u
+EOF
+        exit 1
     fi
     echo "  64-bit prefix (OK)"
 else
@@ -281,5 +184,5 @@ echo "  (IP and port of your converter, Protocol TCP, Encoding Raw)"
 echo
 
 cd "$WINEPREFIX/drive_c/Program Files/Impact Subsea/seaView" 2>/dev/null \
-    || fail "seaView is not installed in this Wine environment." "See SETUP-GUIDE.md Part 5."
+    || { echo "ERROR: seaView is not installed in $WINEPREFIX -- see SETUP-GUIDE.md Part 5." >&2; exit 1; }
 exec wine seaView.exe "$@"
