@@ -104,17 +104,13 @@ That installs without the wizard, which is quicker and repeatable. To use the
 wizard instead, leave off everything after the `.exe` and accept the defaults.
 
 **This takes a few minutes, and the terminal stays busy until it finishes.**
+Leave the first terminal alone until it reports the installation has finished.
 Rather than wait, open a **second terminal** and move to the same folder to
 carry on with the remaining steps:
 
 ```bash
 cd ~/seaview-over-eth
-```
 
-Leave the first terminal alone until it reports the installation has finished.
-
-
-```bash
 WINEPREFIX="$HOME/.wine-seaview" find ~/.wine-seaview/drive_c -name 'seaView.exe' -exec winepath -w {} \;
 ```
 
