@@ -63,7 +63,7 @@ sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/
 ```
 
 ```bash
-sudo apt update && sudo apt install --install-recommends winehq-stable
+sudo apt update && sudo apt install --install-recommends winehq-stable -y
 ```
 
 This downloads several hundred megabytes and takes a few minutes.
