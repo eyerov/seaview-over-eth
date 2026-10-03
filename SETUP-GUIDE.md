@@ -52,17 +52,11 @@ which cannot run seaView reliably. Install WineHQ's version instead:
 
 ```bash
 sudo mkdir -pm755 /etc/apt/keyrings
-```
 
-```bash
 sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-```
 
-```bash
 sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
-```
 
-```bash
 sudo apt update && sudo apt install --install-recommends winehq-stable -y
 ```
 
@@ -119,10 +113,6 @@ cd ~/seaview-over-eth
 
 Leave the first terminal alone until it reports the installation has finished.
 
-> **Do not reboot in Part 6 until the install has completed.** Rebooting part
-> way through leaves seaView half-installed, and Part 7 will not start it.
-
-Once it has finished, confirm it landed:
 
 ```bash
 WINEPREFIX="$HOME/.wine-seaview" find ~/.wine-seaview/drive_c -name 'seaView.exe' -exec winepath -w {} \;
