@@ -203,18 +203,24 @@ else
     python3 - "$SEAVIEW_XML" "$CONVERTER_IP" "$CONVERTER_PORT" <<'PYEOF'
 import re, sys
 path, ip, port = sys.argv[1], sys.argv[2], sys.argv[3]
+# newline="" preserves the file's own line endings. seaView writes CRLF, and
+# rewriting it as LF would quietly change every line of a Windows app's
+# settings file.
 try:
-    s = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8", newline="") as f:
+        s = f.read()
 except OSError as e:
     print(f"  Could not read seaView settings: {e}"); raise SystemExit(0)
 orig = s
 s = re.sub(r"<searchIp>.*?</searchIp>",     f"<searchIp>{ip}</searchIp>",       s, count=1)
 s = re.sub(r"<searchIpPort>.*?</searchIpPort>", f"<searchIpPort>{port}</searchIpPort>", s, count=1)
+# seaView resets searchOpen to false on exit, so this is set on every launch.
 s = re.sub(r"<searchOpen>.*?</searchOpen>", "<searchOpen>true</searchOpen>",    s, count=1)
 if s == orig:
     print("  seaView settings did not contain the expected fields; left alone.")
 else:
-    open(path, "w", encoding="utf-8").write(s)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(s)
     print(f"  Search will open on NETWORK, {ip}:{port}.")
 PYEOF
 fi
