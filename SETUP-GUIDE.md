@@ -61,7 +61,7 @@ sudo mkdir -pm755 /etc/apt/keyrings
 
 sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
 
-sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
+sudo wget -O /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
 
 sudo apt update && sudo apt install --install-recommends winehq-stable -y
 ```
@@ -218,7 +218,7 @@ list on the left.
 ---
 
 ## Everyday use
-Open Terminal and  type
+Open Terminal and run
 ```bash
 cd ~/Downloads/seaview-over-eth-master
 ./start-seaview.sh
