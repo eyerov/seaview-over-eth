@@ -38,14 +38,14 @@ Usage: $(basename "$0") [options]
 
 Options:
   --config FILE       Config file (default: ./seaview.conf if present)
-  --ip IP             Converter address (overrides CONVERTER_IP in the config)
-  --port PORT         Converter port (default: 23)
+  --ip IP             Optional: ping/connect-test a converter before launching
+  --port PORT         Port for --ip (default: 23)
   --exe PATH          Windows path to seaView.exe
   --wineprefix PATH   WINEPREFIX to use (default: ~/.wine-seaview)
   -h, --help          Show this help
 
-The converter address is written into seaView's settings before launch, so
-its device search opens pre-filled. See SETUP-GUIDE.md Part 7.
+The converter address seaView uses is set inside seaView itself, under
+Comms -> + -> Add a Serial Over Lan Port. See SETUP-GUIDE.md Part 7.
 EOF
 }
 
@@ -85,9 +85,9 @@ export WINEDEBUG="${WINEDEBUG:--all}"
 echo "Using WINEPREFIX: $WINEPREFIX"
 
 # ---------------------------------------------------------------------------
-# [1/5] Wine present and new enough
+# [1/4] Wine present and new enough
 # ---------------------------------------------------------------------------
-echo "[1/5] Checking Wine..."
+echo "[1/4] Checking Wine..."
 if ! command -v wine >/dev/null 2>&1; then
     echo "  ERROR: wine is not installed. See SETUP-GUIDE.md Part 3." >&2
     exit 1
@@ -106,13 +106,13 @@ fi
 echo "  $WINE_VER_RAW (OK)"
 
 # ---------------------------------------------------------------------------
-# [2/5] 64-bit prefix
+# [2/4] 64-bit prefix
 #
 # seaView.exe is a 64-bit binary. The installer is 32-bit and will install
 # happily into a win32 prefix, leaving an application that can never start
 # ("Bad EXE format") -- so check the prefix, not the installer.
 # ---------------------------------------------------------------------------
-echo "[2/5] Checking Wine environment..."
+echo "[2/4] Checking Wine environment..."
 if [ -f "$WINEPREFIX/system.reg" ]; then
     if ! head -5 "$WINEPREFIX/system.reg" | grep -q '#arch=win64'; then
         cat >&2 <<EOF
@@ -130,14 +130,14 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# [3/5] Phantom COM ports
+# [3/4] Phantom COM ports
 #
 # seaView polls every COM port Wine advertises, continuously, on the thread
 # that draws its display -- regardless of whether it is using one. The kernel's
 # 8250 driver invents 32 /dev/ttyS* nodes on hardware that has none, and the
 # resulting scan drops the UI below 1 fps. Advisory: needs root and a reboot.
 # ---------------------------------------------------------------------------
-echo "[3/5] Checking for phantom serial ports..."
+echo "[3/4] Checking for phantom serial ports..."
 N_TTYS=$(ls /dev/ttyS* 2>/dev/null | wc -l)
 N_USB=$(ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | wc -l)
 if [ "$((N_TTYS + N_USB))" -gt 0 ]; then
@@ -153,12 +153,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# [4/5] Converter reachable
+# [4/4] Converter reachable
 #
 # Courtesy only: seaView opens its own connection, so this just turns a
 # confusing "no devices found" into an obvious network message.
 # ---------------------------------------------------------------------------
-echo "[4/5] Checking the converter..."
+echo "[4/4] Checking the converter..."
 if [ -z "$CONVERTER_IP" ]; then
     echo "  Skipped -- pass --ip <address> to test a converter before launching."
 else
@@ -177,64 +177,10 @@ else
     fi
 fi
 
-# ---------------------------------------------------------------------------
-# [5/5] Pre-fill seaView's device search with the converter address.
-#
-# seaView keeps its settings in seaview.xml and reads searchIp / searchIpPort
-# at startup. Writing them here means the Devices search opens pointed at the
-# network with the address already in place, instead of the operator typing it.
-#
-# It stops one click short of connecting: seaView still needs Search pressed.
-# There is no command-line or settings route to create the Serial Over LAN
-# port itself -- seaView exposes neither.
-#
-# Only safe while seaView is not running: it rewrites this file on exit.
-# ---------------------------------------------------------------------------
-echo "[5/5] Pre-filling seaView's device search..."
-SEAVIEW_XML="$WINEPREFIX/drive_c/users/$USER/AppData/Roaming/Impact Subsea/seaView/seaview.xml"
-if [ -z "$CONVERTER_IP" ]; then
-    echo "  Skipped (no CONVERTER_IP set)."
-elif [ ! -f "$SEAVIEW_XML" ]; then
-    echo "  Skipped -- seaView has not created its settings file yet."
-    echo "  Run seaView once, close it, and this will work from then on."
-elif pgrep -x seaView.exe >/dev/null 2>&1; then
-    echo "  Skipped -- seaView is already running (it would overwrite the file)." >&2
-else
-    python3 - "$SEAVIEW_XML" "$CONVERTER_IP" "$CONVERTER_PORT" <<'PYEOF'
-import re, sys
-path, ip, port = sys.argv[1], sys.argv[2], sys.argv[3]
-# newline="" preserves the file's own line endings. seaView writes CRLF, and
-# rewriting it as LF would quietly change every line of a Windows app's
-# settings file.
-try:
-    with open(path, encoding="utf-8", newline="") as f:
-        s = f.read()
-except OSError as e:
-    print(f"  Could not read seaView settings: {e}"); raise SystemExit(0)
-orig = s
-s = re.sub(r"<searchIp>.*?</searchIp>",     f"<searchIp>{ip}</searchIp>",       s, count=1)
-s = re.sub(r"<searchIpPort>.*?</searchIpPort>", f"<searchIpPort>{port}</searchIpPort>", s, count=1)
-# seaView resets searchOpen to false on exit, so this is set on every launch.
-s = re.sub(r"<searchOpen>.*?</searchOpen>", "<searchOpen>true</searchOpen>",    s, count=1)
-if s == orig:
-    print("  seaView settings did not contain the expected fields; left alone.")
-else:
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(s)
-    print(f"  Search will open on NETWORK, {ip}:{port}.")
-PYEOF
-fi
-
 echo
 echo "Launching seaView."
-if [ -n "$CONVERTER_IP" ]; then
-    echo "  In Devices, press Search -- the address is already filled in."
-    echo "  Or add the port manually: Comms -> + -> Add a Serial Over Lan Port"
-    echo "  (${CONVERTER_IP}, ${CONVERTER_PORT}, Protocol TCP, Encoding Raw)"
-else
-    echo "  Connect via  Comms -> +  ->  Add a Serial Over Lan Port"
-    echo "  (IP and port of your converter, Protocol TCP, Encoding Raw)"
-fi
+echo "  Connect to the sensor via  Comms -> +  ->  Add a Serial Over Lan Port"
+echo "  (IP and port of your converter, Protocol TCP, Encoding Raw)"
 echo
 
 cd "$WINEPREFIX/drive_c/Program Files/Impact Subsea/seaView" 2>/dev/null \
