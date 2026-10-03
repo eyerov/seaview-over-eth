@@ -1,6 +1,8 @@
-# Nothing is excluded. This repository is handed to operators over GitHub as a
-# complete folder: the seaView installer, the launch script, the config and the
-# guides all travel with it, so a clone needs no other downloads.
+# Internal engineering notes -- not for publication.
+STUDY-REPORT.md
+
+# Everything else travels with the repository, including the seaView installer
+# and seaview.conf, so a clone is self-contained.
 #
 # seaview.conf is committed with working defaults and is meant to be edited in
 # place on each machine. If you later pull updates, git may report a conflict

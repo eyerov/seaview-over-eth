@@ -18,7 +18,7 @@ the guides, so there is nothing to hunt down separately.
 | If you want to… | Go to |
 |---|---|
 | **Set this up on a new machine** | **[SETUP-GUIDE.md](SETUP-GUIDE.md)** — start to finish, about 20 minutes |
-| Understand why it is built this way | [STUDY-REPORT.md](STUDY-REPORT.md) — design analysis and findings |
+| Understand why it is built this way | [SETUP-GUIDE.md](SETUP-GUIDE.md#technical-reference) — the technical reference at the end |
 
 Once set up, day-to-day use is two commands:
 
@@ -67,7 +67,6 @@ a particular socket.
 | File | What it is |
 |---|---|
 | `SETUP-GUIDE.md` | Installation, everyday use, troubleshooting, technical reference |
-| `STUDY-REPORT.md` | Why the architecture is what it is; findings and open questions |
 | `start-seaview.sh` | Pre-launch checks, then starts seaView |
 | `seaview.conf` | Your settings — converter address, Wine paths |
 | `Seaview (Rev 3.1.8.2).exe` | The seaView installer |
