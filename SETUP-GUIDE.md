@@ -22,7 +22,7 @@ the [Everyday use](#everyday-use) section. Allow about 20 minutes.
 ## Part 1 — Open the folder
 
 ```bash
-cd ~/seaview-over-eth
+cd ~/Downloads/seaview-over-eth
 ```
 
 Confirm you are in the right place:
@@ -32,6 +32,12 @@ ls
 ```
 
 You should see `start-seaview.sh` and the `.exe` installer.
+
+> **If that `cd` fails**, the folder has a different name. Downloading the
+> repository as a ZIP from GitHub gives `seaview-over-eth-master`, while
+> cloning it gives `seaview-over-eth`. Check with `ls ~/Downloads`, then use
+> the name you see — every later command that says `seaview-over-eth` should
+> use that name instead.
 
 ---
 
@@ -95,7 +101,7 @@ with `rm -rf ~/.wine-seaview` and run the command again.
 ## Part 5 — Install seaView
 
 ```bash
-cd ~/seaview-over-eth
+cd ~/Downloads/seaview-over-eth
 WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
     --accept-licenses --default-answer --confirm-command
 ```
@@ -109,7 +115,7 @@ Rather than wait, open a **second terminal** and move to the same folder to
 carry on with the remaining steps:
 
 ```bash
-cd ~/seaview-over-eth
+cd ~/Downloads/seaview-over-eth
 
 WINEPREFIX="$HOME/.wine-seaview" find ~/.wine-seaview/drive_c -name 'seaView.exe' -exec winepath -w {} \;
 ```
@@ -212,9 +218,9 @@ list on the left.
 ---
 
 ## Everyday use
-
+Open Terminal and  type
 ```bash
-cd ~/seaview-over-eth
+cd ~/Downloads/seaview-over-eth
 ./start-seaview.sh
 ```
 
@@ -250,16 +256,13 @@ wine --version
 ```bash
 ./start-seaview.sh 2>&1 | head -20
 ```
-
-plus a screenshot of the Comms panel.
-
 ---
 
 ## Quick reference
 
 | Task | Command |
 |---|---|
-| Go to the folder | `cd ~/seaview-over-eth` |
+| Go to the folder | `cd ~/Downloads/seaview-over-eth` |
 | Start seaView | `./start-seaview.sh` |
 | Edit settings | `gnome-text-editor seaview.conf` |
 | Connect to the sensor | Comms → **+** → Add a Serial Over Lan Port |
