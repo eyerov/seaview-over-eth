@@ -101,22 +101,10 @@ with `rm -rf ~/.wine-seaview` and run the command again.
 ## Part 5 — Install seaView
 
 ```bash
-cd ~/seaview-over-eth
-WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe"
-```
-
-The installer window opens. Work through it and **accept the default options**,
-including the default install location.
-
-> **Installing on several machines?** The installer also runs without the
-> wizard:
->
-> ```bash
-> WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
+ WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
 >     --root 'C:\Program Files\Impact Subsea\seaView' \
 >     --accept-licenses --default-answer --confirm-command
-> ```
-
+```
 Confirm where it landed:
 
 ```bash
