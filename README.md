@@ -73,27 +73,6 @@ a particular socket.
 
 ---
 
-## Alongside CP Logger
-
-Both applications can run on the same machine without interfering.
-
-CP Logger uses the [serial-over-eth](https://github.com/eyerov/serial-over-eth)
-setup — socat and a tty0tty virtual serial port bridged into a Wine COM port —
-because NOR-CPlogger has no network option and must be handed something that
-looks like a COM port. **seaView needs none of that**, because it speaks to the
-converter itself.
-
-So the two share a machine and a Wine installation, but not an architecture.
-Each keeps its own Wine environment:
-
-| | CP Logger | seaView |
-|---|---|---|
-| Wine environment | `~/.wine` (32-bit) | `~/.wine-seaview` (64-bit) |
-| Runtime | .NET — needs Wine Mono | Qt/C++ — no Mono |
-| Path to the device | socat → tty0tty → COM10 | direct TCP |
-
----
-
 ## Requirements
 
 - Ubuntu 24.04

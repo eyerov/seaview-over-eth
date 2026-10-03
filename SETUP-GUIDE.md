@@ -101,22 +101,10 @@ with `rm -rf ~/.wine-seaview` and run the command again.
 ## Part 5 — Install seaView
 
 ```bash
-cd ~/seaview-over-eth
-WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe"
-```
-
-The installer window opens. Work through it and **accept the default options**,
-including the default install location.
-
-> **Installing on several machines?** The installer also runs without the
-> wizard:
->
-> ```bash
-> WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
+ WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
 >     --root 'C:\Program Files\Impact Subsea\seaView' \
 >     --accept-licenses --default-answer --confirm-command
-> ```
-
+```
 Confirm where it landed:
 
 ```bash
@@ -348,60 +336,6 @@ Relevant settings on a typical unit:
 The sensor's own defaults can be restored by tilting it from vertical to
 upside-down 3 times within 5 seconds of power-up (RS232, 9600, N81), and 3
 more inversions for RS485, 9600, N81.
-
-## Reading rate
-
-Readings update roughly once a second. The path is the limit, not seaView.
-
-Measured against the bench converter with nothing else connected, a single
-request-and-reply takes **305 ms**, and does so with remarkable consistency:
-
-```
-idle 0.0s -> 23 B in 304.6 ms
-idle 0.5s -> 23 B in 304.9 ms
-idle 1.0s -> 23 B in 304.0 ms
-idle 2.0s -> 23 B in 305.1 ms
-```
-
-That caps the path at about **3 readings per second**, and seaView needs more
-than one exchange per displayed reading.
-
-Where the 305 ms goes, at 9600 baud:
-
-| | |
-|---|---|
-| request on the wire | 15.6 ms |
-| reply on the wire | 24.0 ms |
-| network round trip | 0.8 ms |
-| converter packet time | 2.0 ms |
-| **accounted** | **42.4 ms** |
-| **measured** | **305.0 ms** |
-| **unexplained** | **262.6 ms** |
-
-The 262 ms is a **fixed delay**, not processing time. It does not vary with how
-long the link has been idle, it is unaffected by TCP options (`TCP_NODELAY`,
-`TCP_QUICKACK`), and reducing the converter's UART packet time from 300 ms to
-1 ms changed nothing (304.7 → 304.8 ms). The converter forwards the sensor's
-free-running output promptly, so it is not slow in that direction.
-
-Things worth trying, best first:
-
-1. **Look for an RS485 turnaround or response delay in the converter.** A fixed
-   delay of this size, invariant to everything else, has the shape of a
-   configured timer. The page documented above is the converter's "Parameter"
-   page; these units usually have others. Removing it would take the ceiling
-   from ~3/s to roughly 20/s — by far the largest available win.
-2. **Raise the baud rate from 9600 to 115200**, on the sensor (via seaView's
-   device settings) and then on the converter, in that order. Worth about 36 ms
-   of the 305 ms — real but modest. If the two ever disagree, the sensor's
-   defaults can be restored by tilting it (see above).
-3. **Check the sensor's own output rate** in its settings in seaView. If it is
-   below what the link allows, raising it helps; it cannot exceed the ceiling.
-
-Note the FMD app is a discrete-reading workflow — you position the sensor and
-press **Ping**. For a continuously updating display, the **Altimeter** app is
-the one to use.
-
 ## How the address gets into seaView
 
 seaView keeps its settings in
@@ -422,57 +356,3 @@ fields. So the port itself cannot be created from outside the application.
 
 The file is rewritten by seaView when it exits, so the script only touches it
 while seaView is not running.
-
-## Removing a leftover COM port
-
-seaView uses no serial port in this setup, so the Comms panel should contain
-only `NETWORK` plus whatever Serial Over LAN port you add.
-
-If a `COMxx` entry appears, it is left over from an earlier configuration —
-most likely a machine that once ran the bridged setup described below. It costs
-nothing to leave, but seaView will poll it. Remove it with:
-
-```bash
-WINEPREFIX="$HOME/.wine-seaview" wine reg delete 'HKLM\Software\Wine\Ports' /v COM11 /f
-rm -f ~/.wine-seaview/dosdevices/com11
-WINEPREFIX="$HOME/.wine-seaview" wineserver -k
-```
-
-substituting the port number shown. Confirm with:
-
-```bash
-WINEPREFIX="$HOME/.wine-seaview" wine reg query 'HKLM\HARDWARE\DEVICEMAP\SERIALCOMM'
-```
-
-which should report no serial devices at all.
-
-## Why not socat and tty0tty
-
-An earlier version of this setup bridged the converter into a virtual serial
-port with `socat` and the `tty0tty` kernel module, presenting it to seaView as
-a Wine COM port — the approach
-[serial-over-eth](https://github.com/eyerov/serial-over-eth) uses for CP Logger.
-
-That works for CP Logger because NOR-CPlogger has no network option and must be
-handed something that looks like a COM port. seaView has serial-over-LAN built
-in, so the entire bridge was unnecessary. It was removed, along with the kernel
-module, the `dialout` group requirement, the build tools, and a class of
-problems around the module surviving reboots and kernel upgrades.
-
-Worth knowing if you ever compare the two repositories: they are no longer the
-same architecture, deliberately.
-
-## Known issues
-
-- **Whether the Serial Over LAN port survives a restart is unconfirmed.** It
-  does not appear in `seaview.xml`, which suggests it does not; but the one
-  test that showed it missing had killed seaView outright, preventing any
-  save-on-exit. Close seaView with its window button, relaunch, and see. If the
-  Comms panel is empty, re-add the port as in Part 7.
-- **Most converters serve one TCP session at a time.** If something else is
-  connected — a terminal, a test script, another copy of seaView — the port
-  will not open.
-- **seaView's discovery takes the sensor out of NMEA mode.** If the vehicle
-  software consumes an NMEA stream from the same sensor, running seaView
-  against it will stop that stream until the sensor is power-cycled or put back
-  by seaView. See the study report.
