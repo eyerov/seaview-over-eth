@@ -151,9 +151,7 @@ it if you report any slowness.
 
 ```bash
 sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 8250.nr_uarts=0"/' /etc/default/grub
-```
 
-```bash
 sudo update-grub
 ```
 
