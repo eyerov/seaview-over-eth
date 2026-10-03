@@ -33,11 +33,11 @@ ls
 
 You should see `start-seaview.sh` and the `.exe` installer.
 
-> **If that `cd` fails**, the folder has a different name. Downloading the
-> repository as a ZIP from GitHub gives `seaview-over-eth-master`, while
-> cloning it gives `seaview-over-eth`. Check with `ls ~/Downloads`, then use
-> the name you see — every later command that says `seaview-over-eth` should
-> use that name instead.
+> **If that `cd` fails**, the folder has a different name. This guide assumes
+> you downloaded the ZIP from GitHub, which unpacks to
+> `seaview-over-eth-master`. If you cloned the repository instead, the folder
+> is just `seaview-over-eth` — drop the `-master` from this and every later
+> command. Check with `ls ~/Downloads`.
 
 ---
 
@@ -101,7 +101,7 @@ with `rm -rf ~/.wine-seaview` and run the command again.
 ## Part 5 — Install seaView
 
 ```bash
-cd ~/Downloads/seaview-over-eth-master-master
+cd ~/Downloads/seaview-over-eth-master
 WINEPREFIX="$HOME/.wine-seaview" wine "Seaview (Rev 3.1.8.2).exe" install \
     --accept-licenses --default-answer --confirm-command
 ```

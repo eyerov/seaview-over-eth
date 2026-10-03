@@ -23,7 +23,7 @@ the guides, so there is nothing to hunt down separately.
 Once set up, day-to-day use is two commands:
 
 ```bash
-cd ~/Downloads/seaview-over-eth
+cd ~/Downloads/seaview-over-eth-master
 ./start-seaview.sh
 ```
 
